@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.petcare.mapper.PetMapper">
+
+    <sql id="Base_Columns">
+        id, user_id, name, pet_type, breed, gender, age, weight, avatar, remark, create_time, update_time
+    </sql>
+
+    <insert id="insert" parameterType="com.petcare.entity.Pet"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_pet (user_id, name, pet_type, breed, gender, age, weight, avatar, remark, create_time, update_time)
+        VALUES (#{userId}, #{name}, #{petType}, #{breed}, #{gender}, #{age}, #{weight}, #{avatar}, #{remark}, NOW(),
+                NOW())
+    </insert>
+
+    <!-- 动态更新：前端只传了哪个字段就更新哪个，避免把没传的字段覆盖成 null -->
+    <update id="update" parameterType="com.petcare.entity.Pet">
+        UPDATE t_pet
+        <set>
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="petType != null">pet_type = #{petType},</if>
+            <if test="breed != null">breed = #{breed},</if>
+            <if test="gender != null">gender = #{gender},</if>
+            <if test="age != null">age = #{age},</if>
+            <if test="weight != null">weight = #{weight},</if>
+            <if test="avatar != null">avatar = #{avatar},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id} AND user_id = #{userId}
+    </update>
+
+    <!-- 带上 user_id 做数据隔离：A 用户无法删除 B 用户的宠物 -->
+    <delete id="deleteById">
+        DELETE FROM t_pet
+        WHERE id = #{id} AND user_id = #{userId}
+    </delete>
+
+    <select id="selectById" resultType="com.petcare.entity.Pet">
+        SELECT
+        <include refid="Base_Columns"/>
+        FROM t_pet
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByUserId" resultType="com.petcare.entity.Pet">
+        SELECT
+        <include refid="Base_Columns"/>
+        FROM t_pet
+        WHERE user_id = #{userId}
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="countByUserId" resultType="long">
+        SELECT COUNT(*) FROM t_pet WHERE user_id = #{userId}
+    </select>
+</mapper>

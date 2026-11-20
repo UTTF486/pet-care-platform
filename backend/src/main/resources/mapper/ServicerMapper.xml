@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.petcare.mapper.ServicerMapper">
+
+    <sql id="Base_Columns">
+        id, name, phone, avatar, skills, level, rating, order_count, status, create_time
+    </sql>
+
+    <select id="selectById" resultType="com.petcare.entity.Servicer">
+        SELECT
+        <include refid="Base_Columns"/>
+        FROM t_servicer
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectAvailable" resultType="com.petcare.entity.Servicer">
+        SELECT
+        <include refid="Base_Columns"/>
+        FROM t_servicer
+        WHERE status = 1
+        ORDER BY level DESC, rating DESC
+    </select>
+
+    <select id="selectPage" resultType="com.petcare.entity.Servicer">
+        SELECT
+        <include refid="Base_Columns"/>
+        FROM t_servicer
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (name LIKE CONCAT('%', #{keyword}, '%')
+                OR skills LIKE CONCAT('%', #{keyword}, '%')
+                OR phone LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY status DESC, level DESC, id ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countPage" resultType="long">
+        SELECT COUNT(*)
+        FROM t_servicer
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (name LIKE CONCAT('%', #{keyword}, '%')
+                OR skills LIKE CONCAT('%', #{keyword}, '%')
+                OR phone LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+    </select>
+
+    <insert id="insert" parameterType="com.petcare.entity.Servicer"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_servicer (name, phone, avatar, skills, level, rating, order_count, status, create_time)
+        VALUES (#{name}, #{phone}, #{avatar}, #{skills}, #{level}, 5.00, 0, #{status}, NOW())
+    </insert>
+
+    <update id="update" parameterType="com.petcare.entity.Servicer">
+        UPDATE t_servicer
+        <set>
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="avatar != null">avatar = #{avatar},</if>
+            <if test="skills != null">skills = #{skills},</if>
+            <if test="level != null">level = #{level},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="increaseOrderCount">
+        UPDATE t_servicer
+        SET order_count = order_count + 1
+        WHERE id = #{id}
+    </update>
+</mapper>

@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.petcare.mapper.ServiceItemMapper">
+
+    <sql id="Base_Columns">
+        s.id, s.category_id, s.name, s.cover, s.description, s.price, s.duration,
+        s.status, s.sales, s.create_time, s.update_time
+    </sql>
+
+    <select id="selectById" resultType="com.petcare.entity.ServiceItem">
+        SELECT
+        <include refid="Base_Columns"/>
+        , c.name AS category_name
+        FROM t_service s
+        LEFT JOIN t_category c ON c.id = s.category_id
+        WHERE s.id = #{id}
+    </select>
+
+    <!-- 用户端(status=1) 与后台(不限 status) 共用一条 SQL，靠 if 控制 -->
+    <select id="selectList" resultType="com.petcare.entity.ServiceItem">
+        SELECT
+        <include refid="Base_Columns"/>
+        , c.name AS category_name
+        FROM t_service s
+        LEFT JOIN t_category c ON c.id = s.category_id
+        <where>
+            <if test="categoryId != null">
+                AND s.category_id = #{categoryId}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND s.name LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+            <if test="status != null">
+                AND s.status = #{status}
+            </if>
+        </where>
+        ORDER BY s.sales DESC, s.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countList" resultType="long">
+        SELECT COUNT(*)
+        FROM t_service s
+        <where>
+            <if test="categoryId != null">
+                AND s.category_id = #{categoryId}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND s.name LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+            <if test="status != null">
+                AND s.status = #{status}
+            </if>
+        </where>
+    </select>
+
+    <!-- 热门服务：销量倒序，结果会被缓存到 Redis -->
+    <select id="selectHot" resultType="com.petcare.entity.ServiceItem">
+        SELECT
+        <include refid="Base_Columns"/>
+        , c.name AS category_name
+        FROM t_service s
+        LEFT JOIN t_category c ON c.id = s.category_id
+        WHERE s.status = 1
+        ORDER BY s.sales DESC
+        LIMIT #{limit}
+    </select>
+
+    <insert id="insert" parameterType="com.petcare.entity.ServiceItem"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_service (category_id, name, cover, description, price, duration, status, sales, create_time,
+                               update_time)
+        VALUES (#{categoryId}, #{name}, #{cover}, #{description}, #{price}, #{duration}, #{status}, 0, NOW(), NOW())
+    </insert>
+
+    <update id="update" parameterType="com.petcare.entity.ServiceItem">
+        UPDATE t_service
+        <set>
+            <if test="categoryId != null">category_id = #{categoryId},</if>
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="cover != null">cover = #{cover},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="price != null">price = #{price},</if>
+            <if test="duration != null">duration = #{duration},</if>
+            <if test="status != null">status = #{status},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE t_service
+        SET status = #{status}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="increaseSales">
+        UPDATE t_service
+        SET sales = sales + 1
+        WHERE id = #{id}
+    </update>
+
+    <select id="countOnSale" resultType="long">
+        SELECT COUNT(*) FROM t_service WHERE status = 1
+    </select>
+</mapper>

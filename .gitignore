@@ -1,0 +1,34 @@
+# 依赖与构建产物
+node_modules/
+dist/
+target/
+*.class
+*.jar
+*.war
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# ============ 敏感配置（严禁提交）============
+# 本地配置文件：含真实数据库 / Redis 密码，只保留 .example 模板
+application-local.yml
+application-*.local.yml
+*.local.yml
+# 环境变量文件
+.env
+.env.*
+# Redis 快照
+*.rdb
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 日志
+logs/
+*.log

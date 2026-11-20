@@ -1,0 +1,21 @@
+# ===================================================================
+# 本地配置模板
+#
+# 使用方法：
+#   1. 复制本文件为 application-local.yml（去掉 .example 后缀）
+#   2. 把下面的占位符改成你自己环境的账号密码
+#   3. application-local.yml 已被 .gitignore 忽略，不会提交到仓库
+#
+# 也可以不用本文件，直接设置环境变量：
+#   MYSQL_PASSWORD / MYSQL_USERNAME / MYSQL_HOST / MYSQL_PORT / MYSQL_DB
+#   REDIS_PASSWORD / REDIS_HOST / REDIS_PORT
+# ===================================================================
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/pet_service?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: 你的MySQL密码
+  redis:
+    host: localhost
+    port: 6379
+    password: 你的Redis密码   # 没有密码就删掉这一行或留空

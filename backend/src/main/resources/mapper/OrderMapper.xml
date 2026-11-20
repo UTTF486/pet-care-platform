@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.petcare.mapper.OrderMapper">
+
+    <!--
+      订单 + 宠物 + 服务 + 服务师 + 用户 的一次性关联查询。
+      为什么不在 Java 里循环查：那是 N+1 问题，列表 20 条就是 20 次额外查询。
+      这里 LEFT JOIN 一次搞定，一次网络往返。
+    -->
+    <sql id="Order_Join_Select">
+        SELECT o.*,
+        p.name AS pet_name,
+        p.pet_type AS pet_type,
+        s.cover AS service_cover,
+        s.duration AS service_duration,
+        sv.name AS servicer_name,
+        u.nickname AS user_nickname,
+        (SELECT COUNT(*) FROM t_review r WHERE r.order_id = o.id) &gt; 0 AS reviewed
+        FROM t_order o
+        LEFT JOIN t_pet p ON p.id = o.pet_id
+        LEFT JOIN t_service s ON s.id = o.service_id
+        LEFT JOIN t_servicer sv ON sv.id = o.servicer_id
+        LEFT JOIN t_user u ON u.id = o.user_id
+    </sql>
+
+    <insert id="insert" parameterType="com.petcare.entity.Order"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_order (order_no, user_id, pet_id, service_id, servicer_id, service_name, service_price,
+                             amount, contact_name, contact_phone, address, appoint_date, time_slot,
+                             status, remark, create_time, expire_time)
+        VALUES (#{orderNo}, #{userId}, #{petId}, #{serviceId}, #{servicerId}, #{serviceName}, #{servicePrice},
+                #{amount}, #{contactName}, #{contactPhone}, #{address}, #{appointDate}, #{timeSlot},
+                #{status}, IFNULL(#{remark}, ''), NOW(), #{expireTime})
+    </insert>
+
+    <select id="selectDetail" resultType="com.petcare.vo.OrderVO">
+        <include refid="Order_Join_Select"/>
+        WHERE o.id = #{id}
+    </select>
+
+    <!-- 用户端：我的订单，按状态筛选 -->
+    <select id="selectUserPage" resultType="com.petcare.vo.OrderVO">
+        <include refid="Order_Join_Select"/>
+        <where>
+            o.user_id = #{userId}
+            <if test="status != null">
+                AND o.status = #{status}
+            </if>
+        </where>
+        ORDER BY o.create_time DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countUser" resultType="long">
+        SELECT COUNT(*)
+        FROM t_order o
+        <where>
+            o.user_id = #{userId}
+            <if test="status != null">
+                AND o.status = #{status}
+            </if>
+        </where>
+    </select>
+
+    <!-- 后台：全部订单，待接单排在最前面，符合运营处理习惯 -->
+    <select id="selectAdminPage" resultType="com.petcare.vo.OrderVO">
+        <include refid="Order_Join_Select"/>
+        <where>
+            <if test="status != null">
+                AND o.status = #{status}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (o.order_no LIKE CONCAT('%', #{keyword}, '%')
+                OR o.contact_name LIKE CONCAT('%', #{keyword}, '%')
+                OR o.contact_phone LIKE CONCAT('%', #{keyword}, '%')
+                OR o.address LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+        ORDER BY o.status ASC, o.create_time DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countAdmin" resultType="long">
+        SELECT COUNT(*)
+        FROM t_order o
+        <where>
+            <if test="status != null">
+                AND o.status = #{status}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                AND (o.order_no LIKE CONCAT('%', #{keyword}, '%')
+                OR o.contact_name LIKE CONCAT('%', #{keyword}, '%')
+                OR o.contact_phone LIKE CONCAT('%', #{keyword}, '%')
+                OR o.address LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+        </where>
+    </select>
+
+    <!--
+      下面三个 UPDATE 都是"条件更新"，return 值(影响行数)为 0 说明状态已被别人改过。
+      这比先 SELECT 再 UPDATE 更安全：并发下不会出现两个请求都判断成功的情况。
+    -->
+    <update id="accept">
+        UPDATE t_order
+        SET status = 1, servicer_id = #{servicerId}, accept_time = NOW()
+        WHERE id = #{id} AND status = 0
+    </update>
+
+    <update id="finish">
+        UPDATE t_order
+        SET status = 2, finish_time = NOW()
+        WHERE id = #{id} AND status = 1
+    </update>
+
+    <update id="cancel">
+        UPDATE t_order
+        SET status = 3, cancel_reason = #{reason}, cancel_time = NOW()
+        WHERE id = #{id} AND status IN (0, 1)
+    </update>
+
+    <update id="cancelTimeout">
+        UPDATE t_order
+        SET status = 3, cancel_reason = #{reason}, cancel_time = NOW()
+        WHERE id = #{id} AND status = 0
+    </update>
+
+    <select id="selectTimeoutList" resultType="com.petcare.entity.Order">
+        SELECT *
+        FROM t_order
+        WHERE status = 0
+          AND expire_time &lt;= NOW()
+        ORDER BY expire_time ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="countByStatus" resultType="long">
+        SELECT COUNT(*) FROM t_order WHERE status = #{status}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM t_order
+    </select>
+
+    <!--
+      统计区间数据。营收只算已完成订单(status=2)，否则会把待服务、已取消的钱也算进营收。
+      返回 Map，前端拿 orderCount / revenue 两个 key。
+    -->
+    <select id="selectStatRange" resultType="java.util.Map">
+        SELECT COUNT(*) AS orderCount,
+        IFNULL(SUM(CASE WHEN status = 2 THEN amount ELSE 0 END), 0) AS revenue
+        FROM t_order
+        <where>
+            <if test="start != null">
+                create_time &gt;= #{start}
+            </if>
+        </where>
+    </select>
+
+    <!--
+      报表趋势：dateFormat 由 Service 层按 day/week/month 传入
+      %Y-%m-%d -> 按日   %x-%v -> 按周   %Y-%m -> 按月
+      用 GROUP BY 别名，SQL 更短；缺点是某些严格模式需要改回原表达式。
+    -->
+    <select id="selectTrend" resultType="com.petcare.vo.TrendPointVO">
+        SELECT DATE_FORMAT(create_time, #{dateFormat}) AS label,
+        COUNT(*) AS orderCount,
+        IFNULL(SUM(CASE WHEN status = 2 THEN amount ELSE 0 END), 0) AS revenue
+        FROM t_order
+        WHERE create_time &gt;= #{start}
+        GROUP BY label
+        ORDER BY label ASC
+    </select>
+
+    <select id="selectServiceRank" resultType="com.petcare.vo.ServiceRankVO">
+        SELECT service_id AS serviceId,
+        MAX(service_name) AS serviceName,
+        COUNT(*) AS orderCount,
+        IFNULL(SUM(CASE WHEN status = 2 THEN amount ELSE 0 END), 0) AS revenue
+        FROM t_order
+        WHERE create_time &gt;= #{start}
+        AND status &lt;&gt; 3
+        GROUP BY service_id
+        ORDER BY orderCount DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

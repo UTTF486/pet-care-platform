@@ -1,0 +1,86 @@
+/* ================= 全局样式 ================= */
+:root {
+  /* 覆盖 Element Plus 主题色，宠物服务用青绿色更柔和 */
+  --el-color-primary: #2f9e7e;
+  --el-color-primary-light-3: #63b79f;
+  --el-color-primary-light-5: #93cdbc;
+  --el-color-primary-light-7: #c2e3d9;
+  --el-color-primary-light-8: #daeee8;
+  --el-color-primary-light-9: #edf7f4;
+  --el-color-primary-dark-2: #27826a;
+
+  --page-bg: #f5f7f6;
+  --text-main: #1f2d2a;
+  --text-sub: #6b7c78;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--page-bg);
+  color: var(--text-main);
+  font-size: 14px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.page {
+  padding: 20px 24px 40px;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.page-desc {
+  color: var(--text-sub);
+  font-size: 13px;
+  margin: 0 0 18px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 2px 12px rgba(31, 45, 42, 0.05);
+}
+
+.toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.price {
+  color: #e6532f;
+  font-weight: 600;
+}
+
+.price::before {
+  content: '¥';
+  font-size: 12px;
+}
