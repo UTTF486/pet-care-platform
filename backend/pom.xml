@@ -8,7 +8,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.7.18</version>
+        <version>3.3.5</version>
         <relativePath/>
     </parent>
 
@@ -19,14 +19,14 @@
     <description>智慧宠物服务上门平台 - 后端</description>
 
     <properties>
-        <java.version>1.8</java.version>
-        <mybatis.starter.version>2.3.1</mybatis.starter.version>
+        <java.version>17</java.version>
+        <mybatis.starter.version>3.0.3</mybatis.starter.version>
         <!--
-          覆盖 Spring Boot 2.7 默认管理的 Lombok 1.18.30。
-          原因：1.18.30 不支持 JDK 24/25，在 IDEA 用高版本 JDK 编译时
+          固定兼容 Java 17 与当前 JDK 的 Lombok 版本。
+          原因：旧版 Lombok 在较高版本 JDK 编译时
           注解处理器会失效（不报明显错误），导致 @Data/@Slf4j 生成的
           getter、log 全部缺失，编译时大面积"找不到符号"。
-          1.18.48 同时兼容 JDK 8 ~ 25。
+          1.18.48 同时兼容 Java 17 ~ 25。
         -->
         <lombok.version>1.18.48</lombok.version>
     </properties>
@@ -56,7 +56,7 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
-        <!-- Lettuce 连接池依赖，缺了它 spring.redis.lettuce.pool 配置不生效 -->
+        <!-- Lettuce 连接池依赖，缺了它 spring.data.redis.lettuce.pool 配置不生效 -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-pool2</artifactId>
@@ -69,11 +69,10 @@
             <version>${mybatis.starter.version}</version>
         </dependency>
 
-        <!-- MySQL 驱动（8.x 用 com.mysql:mysql-connector-j 坐标） -->
+        <!-- MySQL 驱动版本由 Spring Boot 3.3 统一管理 -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
-            <version>8.0.33</version>
             <scope>runtime</scope>
         </dependency>
 
@@ -104,7 +103,7 @@
               为什么必须写：JDK 23 起 javac 不再自动从 classpath 发现注解处理器，
               只把 Lombok 当普通 jar，导致 @Data/@Slf4j 全部失效、编译报"找不到符号"。
               声明 annotationProcessorPaths 后 javac 会收到 processor-path 参数，注解处理重新生效。
-              这样 JDK 8 / 17 / 25 都能正常编译。
+              这样 Java 17 / 21 / 25 都能正常编译。
             -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

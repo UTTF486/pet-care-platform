@@ -10,7 +10,7 @@
 
 | 层次 | 技术 |
 | --- | --- |
-| 后端 | Java 8、Spring Boot 2.7、Spring MVC、MyBatis、Maven |
+| 后端 | Java 17、Spring Boot 3.3、Spring MVC、MyBatis、Maven |
 | 存储 | MySQL 8.0、Redis（StringRedisTemplate） |
 | 前端 | Vue 3（`<script setup>`）、Element Plus、Axios、Vue Router、ECharts |
 | 构建 | 后端 Maven，前端 Vite |
@@ -103,7 +103,7 @@ pet-service-platform/
 
 | 软件 | 版本 | 说明 |
 | --- | --- | --- |
-| JDK | 8 或 11 或 17 | 项目按 Java 8 编译，17 也能跑 |
+| JDK | 17+ | 项目按 Java 17 编译，推荐使用 JDK 17 |
 | Maven | 3.6+ | 建议配阿里云镜像 |
 | MySQL | 8.0+ | 5.7 也能跑，注意时区参数 |
 | Redis | 5.0+ | Windows 可用 Memurai 或 WSL/Docker |
@@ -161,13 +161,16 @@ spring:
 ```powershell
 cd backend
 $env:SPRING_PROFILES_ACTIVE = "local"
-mvn clean install -DskipTests
-mvn spring-boot:run
+mvn clean package -DskipTests
+java -jar target/pet-care-server-1.0.0.jar
 ```
 
 `application.yml` 默认使用 `prod` profile，不会自动加载本地密码；只有显式设置
 `SPRING_PROFILES_ACTIVE=local` 时才会导入项目根目录的 `config/application-local.yml`
 和本地 SQL 调试日志配置。若启动目录不同，可用 `PET_LOCAL_CONFIG` 指定绝对路径。
+
+> 当前项目路径包含中文时，部分 Windows 环境下的 `mvn spring-boot:run`
+> 可能因 Maven 插件命令行编码问题报找不到主类；上面使用可执行 Jar 的启动方式已验证可用。
 
 看到 `智慧宠物服务上门平台后端启动成功` 即成功。
 
@@ -266,9 +269,9 @@ proxy: { '/api': { target: 'http://localhost:8080', changeOrigin: true } }
 | 后台图表空白 | 数据被清空 | 重新执行 SQL 种子数据；或自己下几单 |
 | **IDEA 编译报大量"找不到符号"**（`Result.java` 的 `getCode()`、`TokenService` 的 `log`） | IDEA 用的 JDK 版本超出 Lombok 支持范围（如 JDK 25），注解处理器失效，`@Data/@Slf4j` 生成的代码全没了 | 已在 `pom.xml` 修复：Lombok 固定 `1.18.48` + 显式声明 `annotationProcessorPaths`。改完在 IDEA 点 Maven 面板的 **Reload All Maven Projects**，再 `Build → Rebuild Project` |
 | 切换 JDK 后编译报 `Error reading old mojo status ... Input length = 1` | `target/` 里留着另一个 JDK 用不同编码写的增量编译缓存 | `mvn clean` 清一次即可 |
-| IDEA 里 Language Level 显示 25，代码飘黄/飘红 | 项目 SDK 自动识别成了高版本 JDK | 推荐统一到 JDK 17：`File → Project Structure → Project → SDK` 选 17，`Language level` 选 8 或 17 |
+| IDEA 里 Language Level 显示 25，代码飘黄/飘红 | 项目 SDK 自动识别成了高版本 JDK | 推荐统一到 JDK 17：`File → Project Structure → Project → SDK` 选 17，`Language level` 选 17 |
 
-> 关于 JDK：本项目已在 **JDK 8 / 17 / 25** 下验证 `mvn clean test` 通过。为避免“IDEA 一个 JDK、命令行另一个 JDK”带来的缓存编码问题，建议全程统一用一个版本（推荐 17）。
+> 关于 JDK：本项目按 **Java 17 + Spring Boot 3.3** 编译。为避免 IDEA 与命令行使用不同 JDK 导致缓存和字节码问题，建议统一使用 JDK 17。
 
 ---
 

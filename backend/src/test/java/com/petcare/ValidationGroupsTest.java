@@ -4,10 +4,10 @@ import com.petcare.entity.Pet;
 import com.petcare.entity.ServiceItem;
 import org.junit.jupiter.api.Test;
 
-import javax.validation.Validator;
+import jakarta.validation.Validator;
 import java.math.BigDecimal;
 
-import static javax.validation.Validation.buildDefaultValidatorFactory;
+import static jakarta.validation.Validation.buildDefaultValidatorFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

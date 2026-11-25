@@ -10,7 +10,7 @@ import com.petcare.vo.LoginVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 
 /**
  * 认证相关接口。

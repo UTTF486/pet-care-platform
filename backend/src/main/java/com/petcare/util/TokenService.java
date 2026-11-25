@@ -92,11 +92,11 @@ public class TokenService {
         redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             byte[] serializerToken = redisTemplate.getStringSerializer()
                     .serialize(TOKEN_KEY_PREFIX + token);
-            connection.expire(serializerToken, EXPIRE_SECONDS);
+            connection.keyCommands().expire(serializerToken, EXPIRE_SECONDS);
             if (user != null) {
                 byte[] userKey = redisTemplate.getStringSerializer()
                         .serialize(USER_KEY_PREFIX + user.getId());
-                connection.expire(userKey, EXPIRE_SECONDS);
+                connection.keyCommands().expire(userKey, EXPIRE_SECONDS);
             }
             return null;
         });
