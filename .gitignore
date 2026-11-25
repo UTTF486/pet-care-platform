@@ -34,6 +34,5 @@ Thumbs.db
 logs/
 *.log
 
-# 本地个人文档（简历等，不提交到代码仓库）
-*-简历*.docx
-*-面试*.docx
+# 本地 Office 文档（不提交到代码仓库）
+*.docx
