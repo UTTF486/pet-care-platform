@@ -15,6 +15,8 @@ public interface ServicerMapper {
     /** 接单时选人：只查"可接单"状态的 */
     List<Servicer> selectAvailable();
 
+    int countAvailableById(@Param("id") Long id);
+
     List<Servicer> selectPage(@Param("keyword") String keyword,
                               @Param("offset") int offset,
                               @Param("size") int size);

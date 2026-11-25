@@ -112,7 +112,8 @@ public class StatsService {
      * 服务项目排行，看板柱状图。
      */
     public List<ServiceRankVO> ranking(String type, int range, int limit) {
-        return orderMapper.selectServiceRank(resolveStart(type, range), limit);
+        int safeLimit = Math.min(Math.max(limit, 1), 20);
+        return orderMapper.selectServiceRank(resolveStart(type, range), safeLimit);
     }
 
     // ---------------- 私有方法 ----------------

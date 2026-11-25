@@ -5,6 +5,7 @@ import com.petcare.common.PageResult;
 import com.petcare.common.ResultCode;
 import com.petcare.entity.Servicer;
 import com.petcare.mapper.ServicerMapper;
+import com.petcare.util.PageUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -25,7 +26,9 @@ public class ServicerService {
     }
 
     public PageResult<Servicer> page(String keyword, int pageNum, int pageSize) {
-        int offset = (pageNum - 1) * pageSize;
+        pageNum = PageUtil.normalizePageNum(pageNum);
+        pageSize = PageUtil.normalizePageSize(pageSize);
+        int offset = PageUtil.offset(pageNum, pageSize);
         long total = servicerMapper.countPage(keyword);
         if (total == 0) {
             return PageResult.empty(pageNum, pageSize);

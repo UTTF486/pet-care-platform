@@ -10,12 +10,14 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.concurrent.TimeUnit;
+import java.util.Collections;
 
 /**
  * 限流切面：固定时间窗口 + Redis 自增计数。
@@ -23,9 +25,8 @@ import java.util.concurrent.TimeUnit;
  * 逻辑：key = rate:{业务}:{用户或IP}
  * 第一次访问时 INCR 得到 1，顺便设置过期时间；超过阈值就抛 429。
  * <p>
- * 为什么用 Redis 而不是本地 Map：应用多实例部署时，本地计数各算各的，拦不住。
- * 已知局限：INCR 与 EXPIRE 非原子，极端情况下 key 可能没有过期时间；
- * 生产可用 Lua 脚本合并成一次调用（面试可以主动提这一点，是加分项）。
+ * 计数保存在 Redis，保证多实例部署下共享同一限流窗口。
+ * INCR 与 EXPIRE 通过 Lua 脚本原子执行，避免计数 key 永久泄漏。
  */
 @Slf4j
 @Aspect
@@ -34,6 +35,13 @@ import java.util.concurrent.TimeUnit;
 public class RateLimitAspect {
 
     private static final String KEY_PREFIX = "rate:";
+    private static final RedisScript<Long> RATE_LIMIT_SCRIPT = new DefaultRedisScript<>(
+            "local current = redis.call('INCR', KEYS[1]); "
+                    + "if current == 1 then "
+                    + "redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1])); "
+                    + "end; "
+                    + "return current;",
+            Long.class);
 
     private final StringRedisTemplate redisTemplate;
 
@@ -42,11 +50,10 @@ public class RateLimitAspect {
         String identity = resolveIdentity();
         String redisKey = KEY_PREFIX + rateLimit.key() + ":" + identity;
 
-        Long current = redisTemplate.opsForValue().increment(redisKey);
-        // 第一次访问设置窗口过期时间，避免计数永久累积
-        if (current != null && current == 1L) {
-            redisTemplate.expire(redisKey, rateLimit.seconds(), TimeUnit.SECONDS);
-        }
+        Long current = redisTemplate.execute(
+                RATE_LIMIT_SCRIPT,
+                Collections.singletonList(redisKey),
+                String.valueOf(rateLimit.seconds()));
 
         if (current != null && current > rateLimit.count()) {
             log.warn("触发限流, key={}, 当前次数={}", redisKey, current);

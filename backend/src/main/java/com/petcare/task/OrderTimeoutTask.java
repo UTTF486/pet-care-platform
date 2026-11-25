@@ -10,10 +10,9 @@ import org.springframework.stereotype.Component;
  * 订单超时自动取消任务。
  * <p>
  * 实现方式：每分钟扫一次 t_order 里 status=0 且 expire_time <= now 的订单。
- * 为什么不用延迟队列：引入 RabbitMQ / Redis ZSet 会显著增加部署复杂度，
- * 对单体项目来说"定时扫表 + 索引"已经够用（idx_status_expire 保证不全表扫）。
+ * 当前采用定时扫表配合 idx_status_expire 索引，避免引入额外调度基础设施。
  * <p>
- * 生产环境演进方向（面试可讲）：
+ * 后续演进方向：
  * 1) 订单表大了之后，调度任务拆到独立服务，避免多实例重复执行（可用 Redis 锁 / XXL-JOB）；
  * 2) 改用延迟消息，到期精确取消，不用轮询；
  * 3) 加监控告警：单次取消量突增说明商家侧出问题了。

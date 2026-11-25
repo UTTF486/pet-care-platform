@@ -1,6 +1,7 @@
 package com.petcare.common;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -58,6 +59,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public Result<Void> handleMissingParam(MissingServletRequestParameterException e) {
         return Result.fail(ResultCode.PARAM_ERROR, "缺少必要参数：" + e.getParameterName());
+    }
+
+    /** 唯一索引冲突：注册重名、评价重复提交等并发场景。 */
+    @ExceptionHandler(DuplicateKeyException.class)
+    public Result<Void> handleDuplicateKey(DuplicateKeyException e) {
+        log.warn("唯一键冲突: {}", e.getMessage());
+        return Result.fail(ResultCode.PARAM_ERROR, "数据已存在，请勿重复提交");
     }
 
     /** 兜底：非预期异常必须打完整堆栈，方便定位 */

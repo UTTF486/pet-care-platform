@@ -55,6 +55,8 @@ mybatis:
 
 # ---------------- 业务自定义配置 ----------------
 pet:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
   order:
     timeout-minutes: 30          # 待接单超时时间(分钟)，定时任务据此计算 expire_time
   cache:

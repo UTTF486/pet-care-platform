@@ -13,9 +13,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * 登录态管理：Token 存 Redis，天然支持多实例部署。
  * <p>
- * 为什么不用纯 JWT：
- * 1) JWT 签发后无法主动失效（踢人下线要额外维护黑名单）—— 后台"禁用用户"就必须能立刻生效；
- * 2) 用 Redis 存 userId，服务端可控，扩展成本低。
+ * 不使用纯 JWT：JWT 签发后无法直接撤销，而禁用用户需要会话立即失效。
+ * 服务端通过 Redis 保存登录状态，可主动删除并支持多实例共享。
  * <p>
  * 设计成两个 key：
  * login:token:{token} -> userId      定位是哪个用户
@@ -81,8 +80,15 @@ public class TokenService {
      * 续期：用户一直活跃就不过期。
      */
     public void refresh(String token) {
-        redisTemplate.expire(TOKEN_KEY_PREFIX + token, EXPIRE_SECONDS, TimeUnit.SECONDS);
         LoginUser user = getLoginUser(token);
+        refresh(token, user);
+    }
+
+    /**
+     * 使用拦截器已经解析出的用户续期，避免一次请求重复读取两次 Redis。
+     */
+    public void refresh(String token, LoginUser user) {
+        redisTemplate.expire(TOKEN_KEY_PREFIX + token, EXPIRE_SECONDS, TimeUnit.SECONDS);
         if (user != null) {
             redisTemplate.expire(USER_KEY_PREFIX + user.getId(), EXPIRE_SECONDS, TimeUnit.SECONDS);
         }

@@ -136,6 +136,7 @@ CREATE TABLE t_order
     UNIQUE KEY uk_order_no (order_no),
     KEY idx_user_status (user_id, status, create_time) COMMENT '用户端我的订单',
     KEY idx_status_expire (status, expire_time) COMMENT '定时任务扫超时单，避免全表扫',
+    KEY idx_status_create (status, create_time) COMMENT '后台订单按状态和时间排序',
     KEY idx_create_time (create_time) COMMENT '报表按时间范围聚合'
 ) ENGINE = InnoDB COMMENT '服务订单表';
 

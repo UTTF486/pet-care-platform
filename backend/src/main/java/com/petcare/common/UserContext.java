@@ -6,7 +6,7 @@ package com.petcare.common;
  * 原理：Tomcat 每个请求一个线程，拦截器在 preHandle 里 set，请求结束后 afterCompletion 里 clear。
  * 业务层就不用一层层传 userId 参数了。
  * <p>
- * 注意：一定要 clear，否则线程池复用线程会导致用户信息串号（这是面试常考坑）。
+ * 请求结束后必须 clear，避免线程池复用导致用户信息串号。
  */
 public final class UserContext {
 

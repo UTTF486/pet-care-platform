@@ -12,6 +12,7 @@ import com.petcare.entity.Review;
 import com.petcare.entity.ServiceItem;
 import com.petcare.mapper.*;
 import com.petcare.util.CommonUtil;
+import com.petcare.util.PageUtil;
 import com.petcare.vo.OrderVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +34,7 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * 并发安全的关键：所有流转都用 "UPDATE ... WHERE status = 旧状态"，
  * 影响行数为 0 就说明状态已经被别人改过，直接抛业务异常。
- * 这样不需要加分布式锁，也不会出现"两个请求都接单成功"。
+ * 条件更新避免引入分布式锁，并阻止同一订单被重复接单。
  */
 @Slf4j
 @Service
@@ -123,7 +124,9 @@ public class OrderService {
 
     public PageResult<OrderVO> myOrders(Integer status, int pageNum, int pageSize) {
         Long userId = commonUtil.currentUserId();
-        int offset = (pageNum - 1) * pageSize;
+        pageNum = PageUtil.normalizePageNum(pageNum);
+        pageSize = PageUtil.normalizePageSize(pageSize);
+        int offset = PageUtil.offset(pageNum, pageSize);
         long total = orderMapper.countUser(userId, status);
         if (total == 0) {
             return PageResult.empty(pageNum, pageSize);
@@ -237,7 +240,9 @@ public class OrderService {
     // ==================== 后台 ====================
 
     public PageResult<OrderVO> adminPage(Integer status, String keyword, int pageNum, int pageSize) {
-        int offset = (pageNum - 1) * pageSize;
+        pageNum = PageUtil.normalizePageNum(pageNum);
+        pageSize = PageUtil.normalizePageSize(pageSize);
+        int offset = PageUtil.offset(pageNum, pageSize);
         long total = orderMapper.countAdmin(status, keyword);
         if (total == 0) {
             return PageResult.empty(pageNum, pageSize);
@@ -258,7 +263,7 @@ public class OrderService {
         if (order.getStatus() != OrderStatus.PENDING_ACCEPT) {
             throw new BusinessException("只有待接单的订单才能接单");
         }
-        if (!servicerMapper.selectAvailable().stream().anyMatch(s -> s.getId().equals(servicerId))) {
+        if (servicerMapper.countAvailableById(servicerId) == 0) {
             throw new BusinessException("服务师不存在或当前休息中");
         }
 

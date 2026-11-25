@@ -2,6 +2,7 @@ package com.petcare.config;
 
 import com.petcare.interceptor.AuthInterceptor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -18,6 +19,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
 
     private final AuthInterceptor authInterceptor;
+
+    @Value("${pet.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173}")
+    private String allowedOrigins;
 
     /**
      * BCrypt：自带随机盐，同一个密码每次加密结果都不同，比 MD5 安全得多。
@@ -38,14 +42,13 @@ public class WebConfig implements WebMvcConfigurer {
     }
 
     /**
-     * 开发环境跨域配置。
-     * 前端用 Vite 代理时其实走不到这里，但直接访问 8080 或用 Postman 调试时需要。
-     * 生产环境务必把 allowedOriginPatterns 收窄成具体域名。
+     * 跨域白名单由配置控制，默认只允许本地前端端口。
      */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
+        String[] origins = allowedOrigins.split("\\s*,\\s*");
         registry.addMapping("/api/**")
-                .allowedOriginPatterns("*")
+                .allowedOrigins(origins)
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true)

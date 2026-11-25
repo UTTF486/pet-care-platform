@@ -4,6 +4,7 @@ import com.petcare.common.*;
 import com.petcare.dto.AccountDTO;
 import com.petcare.entity.User;
 import com.petcare.mapper.UserMapper;
+import com.petcare.util.PageUtil;
 import com.petcare.util.TokenService;
 import com.petcare.vo.LoginVO;
 import lombok.RequiredArgsConstructor;
@@ -79,7 +80,9 @@ public class AuthService {
     // ---------------- 后台用户管理 ----------------
 
     public PageResult<User> pageUsers(String keyword, int pageNum, int pageSize) {
-        int offset = (pageNum - 1) * pageSize;
+        pageNum = PageUtil.normalizePageNum(pageNum);
+        pageSize = PageUtil.normalizePageSize(pageSize);
+        int offset = PageUtil.offset(pageNum, pageSize);
         long total = userMapper.countPage(keyword);
         if (total == 0) {
             return PageResult.empty(pageNum, pageSize);
@@ -92,6 +95,9 @@ public class AuthService {
      * 启用/禁用用户。禁用后要立刻踢下线，否则已登录的会话还能继续用。
      */
     public void changeStatus(Long id, Integer status) {
+        if (status == null || (status != 0 && status != 1)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "状态值只能是 0 或 1");
+        }
         User user = userMapper.selectById(id);
         if (user == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "用户不存在");

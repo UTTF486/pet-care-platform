@@ -3,6 +3,7 @@ package com.petcare.dto;
 import lombok.Data;
 
 import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 
 /**
@@ -21,5 +22,6 @@ public class AccountDTO {
 
     /** 注册时使用 */
     private String nickname;
+    @Pattern(regexp = "^$|^1[3-9]\\d{9}$", message = "手机号格式不正确")
     private String phone;
 }

@@ -7,9 +7,8 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 手写分页结果。
- * 为什么不用 PageHelper：一是少一个依赖，二是分页 SQL 自己写更容易讲清楚
- * （count 一次 + limit 一次，两次查询）。
+ * 分页结果对象。
+ * 分页查询显式执行 count 与 limit，减少额外框架依赖。
  */
 @Data
 public class PageResult<T> implements Serializable {

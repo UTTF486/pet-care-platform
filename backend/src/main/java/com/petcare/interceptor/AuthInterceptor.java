@@ -76,7 +76,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 
         // 5. 放入上下文 + 续期
         UserContext.set(loginUser);
-        tokenService.refresh(token);
+        tokenService.refresh(token, loginUser);
         return true;
     }
 

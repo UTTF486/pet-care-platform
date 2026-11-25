@@ -3,6 +3,7 @@ package com.petcare.service;
 import com.petcare.common.PageResult;
 import com.petcare.entity.Message;
 import com.petcare.mapper.MessageMapper;
+import com.petcare.util.PageUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,7 +34,9 @@ public class MessageService {
     }
 
     public PageResult<Message> page(Long userId, int pageNum, int pageSize) {
-        int offset = (pageNum - 1) * pageSize;
+        pageNum = PageUtil.normalizePageNum(pageNum);
+        pageSize = PageUtil.normalizePageSize(pageSize);
+        int offset = PageUtil.offset(pageNum, pageSize);
         long total = messageMapper.countByUserId(userId);
         if (total == 0) {
             return PageResult.empty(pageNum, pageSize);

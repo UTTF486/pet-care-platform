@@ -82,8 +82,13 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import * as echarts from 'echarts'
+import { init, use } from 'echarts/core'
+import { BarChart, LineChart } from 'echarts/charts'
+import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { statsOverview, statsRanking, statsTrend } from '../../api'
+
+use([BarChart, LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
 const router = useRouter()
 
@@ -222,8 +227,8 @@ function handleResize() {
 onMounted(async () => {
   // 先渲染骨架，再拉数据；图表必须等 DOM 有了才能 init
   await nextTick()
-  trendChart = echarts.init(trendRef.value)
-  rankChart = echarts.init(rankRef.value)
+  trendChart = init(trendRef.value)
+  rankChart = init(rankRef.value)
 
   await Promise.all([loadOverview(), loadTrend(), loadRanking()])
   window.addEventListener('resize', handleResize)

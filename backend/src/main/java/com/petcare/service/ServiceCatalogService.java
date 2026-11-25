@@ -9,23 +9,24 @@ import com.petcare.entity.Category;
 import com.petcare.entity.ServiceItem;
 import com.petcare.mapper.CategoryMapper;
 import com.petcare.mapper.ServiceItemMapper;
+import com.petcare.util.PageUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
  * 服务品类 + 服务项目服务。
  * <p>
- * Redis 缓存策略（面试重点）：
+ * Redis 缓存策略：
  * 1. 缓存对象：热门服务列表、服务详情 —— 读多写极少，适合缓存
  * 2. 缓存模式：Cache-Aside（读时先查缓存，未命中查库并回写；写时删缓存）
- * 3. 为什么是"删缓存"而不是"更新缓存"：并发写会写进旧值，删除更安全
+ * 3. 写操作删除缓存，避免并发更新写入旧值
  * 4. 过期时间：热门 10 分钟、详情 30 分钟，避免缓存与库长期不一致
  */
 @Slf4j
@@ -35,8 +36,6 @@ public class ServiceCatalogService {
 
     private static final String KEY_HOT = "cache:service:hot";
     private static final String KEY_DETAIL_PREFIX = "cache:service:detail:";
-    private static final String KEY_PATTERN = "cache:service:*";
-
     private final ServiceItemMapper serviceItemMapper;
     private final CategoryMapper categoryMapper;
     private final StringRedisTemplate redisTemplate;
@@ -122,7 +121,7 @@ public class ServiceCatalogService {
         item.setCover(item.getCover() == null ? "" : item.getCover());
         item.setDescription(item.getDescription() == null ? "" : item.getDescription());
         serviceItemMapper.insert(item);
-        evictCache();
+        evictCache(item.getId());
         return item.getId();
     }
 
@@ -134,7 +133,7 @@ public class ServiceCatalogService {
         if (rows == 0) {
             throw new BusinessException(ResultCode.NOT_FOUND, "服务项目不存在");
         }
-        evictCache();
+        evictCache(item.getId());
     }
 
     /**
@@ -145,14 +144,16 @@ public class ServiceCatalogService {
             throw new BusinessException(ResultCode.PARAM_ERROR, "状态值只能是 0 或 1");
         }
         serviceItemMapper.updateStatus(id, status);
-        evictCache();
+        evictCache(id);
     }
 
     // ---------------- 私有方法 ----------------
 
     private PageResult<ServiceItem> doPage(Long categoryId, String keyword, Integer status,
                                            int pageNum, int pageSize) {
-        int offset = (pageNum - 1) * pageSize;
+        pageNum = PageUtil.normalizePageNum(pageNum);
+        pageSize = PageUtil.normalizePageSize(pageSize);
+        int offset = PageUtil.offset(pageNum, pageSize);
         long total = serviceItemMapper.countList(categoryId, keyword, status);
         if (total == 0) {
             return PageResult.empty(pageNum, pageSize);
@@ -170,15 +171,19 @@ public class ServiceCatalogService {
     }
 
     /**
-     * 服务数据变更后清缓存。
-     * 这里用 keys 通配删除，数据量小时够用；
-     * 生产环境应改用 SCAN 游标遍历，或按 id 精确删除，避免阻塞 Redis。
+     * 服务数据变更后只删除受影响的 key，避免 KEYS 全库扫描阻塞 Redis。
      */
-    private void evictCache() {
-        Set<String> keys = redisTemplate.keys(KEY_PATTERN);
-        if (keys != null && !keys.isEmpty()) {
+    private void evictCache(Long serviceId) {
+        List<String> keys = new ArrayList<>(2);
+        keys.add(KEY_HOT);
+        if (serviceId != null) {
+            keys.add(KEY_DETAIL_PREFIX + serviceId);
+        }
+        try {
             redisTemplate.delete(keys);
             log.debug("清理服务缓存 {} 个", keys.size());
+        } catch (Exception e) {
+            log.warn("清理服务缓存失败, keys={}", keys, e);
         }
     }
 }

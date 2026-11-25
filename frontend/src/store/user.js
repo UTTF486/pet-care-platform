@@ -1,7 +1,6 @@
 /**
- * 极简登录态管理（localStorage）。
- * 项目规模小，没必要引 Pinia/Vuex；把"存/取/清"三件事封装好就够用。
- * 需要响应式共享状态时再升级到 Pinia，面试时可以说明这个取舍。
+ * 登录态管理（localStorage）。
+ * 当前仅封装存、取、清三个操作；需要响应式共享状态时可迁移到 Pinia。
  */
 const TOKEN_KEY = 'token'
 const USER_KEY = 'user'

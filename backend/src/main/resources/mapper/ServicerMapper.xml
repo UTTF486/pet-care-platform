@@ -21,6 +21,12 @@
         ORDER BY level DESC, rating DESC
     </select>
 
+    <select id="countAvailableById" resultType="int">
+        SELECT COUNT(*)
+        FROM t_servicer
+        WHERE id = #{id} AND status = 1
+    </select>
+
     <select id="selectPage" resultType="com.petcare.entity.Servicer">
         SELECT
         <include refid="Base_Columns"/>
