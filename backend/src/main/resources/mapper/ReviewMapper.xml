@@ -21,16 +21,4 @@
         ORDER BY create_time DESC
     </select>
 
-    <select id="countAll" resultType="long">
-        SELECT COUNT(*) FROM t_review
-    </select>
-
-    <!-- 好评定义：4 星及以上 -->
-    <select id="countGood" resultType="long">
-        SELECT COUNT(*) FROM t_review WHERE rating &gt;= 4
-    </select>
-
-    <select id="avgRating" resultType="java.math.BigDecimal">
-        SELECT IFNULL(ROUND(AVG(rating), 2), 0) FROM t_review
-    </select>
 </mapper>

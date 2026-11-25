@@ -2,6 +2,7 @@ package com.petcare.controller;
 
 import com.petcare.common.PageResult;
 import com.petcare.common.Result;
+import com.petcare.annotation.RateLimit;
 import com.petcare.entity.Category;
 import com.petcare.entity.ServiceItem;
 import com.petcare.service.ServiceCatalogService;
@@ -34,6 +35,8 @@ public class ServiceController {
     }
 
     /** 服务列表，支持品类筛选 + 关键字搜索 + 分页 */
+    @RateLimit(key = "service:list", count = 120, seconds = 60,
+            message = "搜索太频繁了，请稍后再试")
     @GetMapping("/services")
     public Result<PageResult<ServiceItem>> list(@RequestParam(required = false) Long categoryId,
                                                 @RequestParam(required = false) String keyword,

@@ -25,7 +25,9 @@ CREATE TABLE t_user
     create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_username (username) COMMENT '账号唯一，注册时靠它兜底防重复'
+    UNIQUE KEY uk_username (username) COMMENT '账号唯一，注册时靠它兜底防重复',
+    KEY idx_phone (phone) COMMENT '后台手机号精确搜索',
+    KEY idx_nickname (nickname) COMMENT '后台昵称前缀搜索'
 ) ENGINE = InnoDB COMMENT '用户表';
 
 -- ---------------------------------------------------------------------
@@ -81,7 +83,8 @@ CREATE TABLE t_service
     create_time DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    KEY idx_category_status (category_id, status) COMMENT '列表页按品类+上架状态过滤'
+    KEY idx_category_status (category_id, status) COMMENT '列表页按品类+上架状态过滤',
+    KEY idx_name (name) COMMENT '后台服务名前缀搜索'
 ) ENGINE = InnoDB COMMENT '服务项目表';
 
 -- ---------------------------------------------------------------------
@@ -99,19 +102,24 @@ CREATE TABLE t_servicer
     order_count INT           NOT NULL DEFAULT 0 COMMENT '累计接单数',
     status      TINYINT       NOT NULL DEFAULT 1 COMMENT '1-可接单 0-休息',
     create_time DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    KEY idx_name (name) COMMENT '后台姓名前缀搜索',
+    KEY idx_phone (phone) COMMENT '后台手机号精确搜索'
 ) ENGINE = InnoDB COMMENT '服务师表';
 
 -- ---------------------------------------------------------------------
 -- 6. 订单表(核心)
 --    status: 0-待接单 1-待服务(已接单) 2-已完成 3-已取消
 --    expire_time: 超时自动取消的时间点，定时任务扫它
---    service_name / service_price 冗余快照：服务改价后历史订单金额不能被篡改
+--    service_name / service_price / service_duration 冗余快照：
+--    服务改名、改价、改时长后历史订单不能被篡改
 -- ---------------------------------------------------------------------
 CREATE TABLE t_order
 (
     id            BIGINT         NOT NULL AUTO_INCREMENT COMMENT '主键',
     order_no      VARCHAR(32)    NOT NULL COMMENT '业务订单号，对外展示',
+    request_id    VARCHAR(64)    NOT NULL COMMENT '客户端幂等请求号',
+    request_hash  VARCHAR(64)    NOT NULL COMMENT '幂等请求参数指纹',
     user_id       BIGINT         NOT NULL COMMENT '下单用户',
     pet_id        BIGINT         NOT NULL COMMENT '服务对象宠物',
     service_id    BIGINT         NOT NULL COMMENT '服务项目',
@@ -119,11 +127,14 @@ CREATE TABLE t_order
     service_name  VARCHAR(64)    NOT NULL DEFAULT '' COMMENT '服务名快照',
     service_price DECIMAL(10, 2) NOT NULL DEFAULT 0 COMMENT '下单时单价快照',
     amount        DECIMAL(10, 2) NOT NULL COMMENT '实付金额',
+    service_duration INT         NOT NULL COMMENT '下单时服务时长快照(分钟)',
     contact_name  VARCHAR(32)    NOT NULL COMMENT '联系人',
     contact_phone VARCHAR(20)    NOT NULL COMMENT '联系电话',
     address       VARCHAR(255)   NOT NULL COMMENT '上门地址',
     appoint_date  DATE           NOT NULL COMMENT '预约日期',
     time_slot     VARCHAR(32)    NOT NULL COMMENT '预约时段，如 10:00-12:00',
+    appointment_start DATETIME    NOT NULL COMMENT '预约开始时间快照',
+    appointment_end   DATETIME    NOT NULL COMMENT '预约结束时间快照',
     status        TINYINT        NOT NULL DEFAULT 0 COMMENT '0-待接单 1-待服务 2-已完成 3-已取消',
     remark        VARCHAR(255)   NOT NULL DEFAULT '' COMMENT '用户备注',
     cancel_reason VARCHAR(255)   NOT NULL DEFAULT '' COMMENT '取消原因',
@@ -134,14 +145,20 @@ CREATE TABLE t_order
     cancel_time   DATETIME                DEFAULT NULL COMMENT '取消时间',
     PRIMARY KEY (id),
     UNIQUE KEY uk_order_no (order_no),
+    UNIQUE KEY uk_user_request (user_id, request_id) COMMENT '用户请求幂等',
     KEY idx_user_status (user_id, status, create_time) COMMENT '用户端我的订单',
     KEY idx_status_expire (status, expire_time) COMMENT '定时任务扫超时单，避免全表扫',
     KEY idx_status_create (status, create_time) COMMENT '后台订单按状态和时间排序',
-    KEY idx_create_time (create_time) COMMENT '报表按时间范围聚合'
+    KEY idx_create_time (create_time) COMMENT '报表按时间范围聚合',
+    KEY idx_pet_id (pet_id) COMMENT '删除宠物前检查历史订单',
+    KEY idx_contact_name (contact_name) COMMENT '后台联系人前缀搜索',
+    KEY idx_contact_phone (contact_phone) COMMENT '后台手机号精确搜索',
+    KEY idx_address (address) COMMENT '后台上门地址前缀搜索',
+    KEY idx_servicer_time (servicer_id, status, appointment_start, appointment_end) COMMENT '接单区间重叠检查'
 ) ENGINE = InnoDB COMMENT '服务订单表';
 
 -- ---------------------------------------------------------------------
--- 7. 订单流转日志：每次状态变更留痕，方便售后追溯 & 面试讲"可审计"
+-- 7. 订单流转日志：每次状态变更留痕，方便售后追溯与审计
 -- ---------------------------------------------------------------------
 CREATE TABLE t_order_log
 (
@@ -149,6 +166,7 @@ CREATE TABLE t_order_log
     order_id      BIGINT      NOT NULL COMMENT '订单 id',
     from_status   TINYINT     NOT NULL COMMENT '变更前状态',
     to_status     TINYINT     NOT NULL COMMENT '变更后状态',
+    event_type    VARCHAR(32) NOT NULL DEFAULT 'STATUS_CHANGE' COMMENT '事件类型',
     operator_type TINYINT     NOT NULL DEFAULT 0 COMMENT '0-用户 1-商家 2-系统',
     operator_id   BIGINT      NOT NULL DEFAULT 0 COMMENT '操作人 id，系统操作为 0',
     remark        VARCHAR(255) NOT NULL DEFAULT '' COMMENT '操作说明',
@@ -172,7 +190,8 @@ CREATE TABLE t_review
     create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uk_order_id (order_id) COMMENT '一单一评，数据库层防重复提交',
-    KEY idx_service_id (service_id)
+    KEY idx_service_id (service_id),
+    KEY idx_servicer_id (servicer_id) COMMENT '服务师评分聚合'
 ) ENGINE = InnoDB COMMENT '服务评价表';
 
 -- ---------------------------------------------------------------------
@@ -190,19 +209,20 @@ CREATE TABLE t_message
     is_read     TINYINT      NOT NULL DEFAULT 0 COMMENT '0-未读 1-已读',
     create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    KEY idx_user_read (user_id, is_read)
+    KEY idx_user_read (user_id, is_read),
+    KEY idx_user_time (user_id, create_time) COMMENT '消息列表按时间分页'
 ) ENGINE = InnoDB COMMENT '消息通知表';
 
 -- =====================================================================
 -- 种子数据
--- 说明：密码先写明文 123456，应用启动时 DataInitializer 会自动把它
---      升级成 BCrypt 密文（这样脚本里不用塞 bcrypt 串，避免抄错）
+-- 说明：种子账号密码直接写 BCrypt 密文，默认演示密码仍为 123456。
+--      prod 环境即使不启用 DataInitializer，账号也可以正常登录。
 -- =====================================================================
 INSERT INTO t_user (username, password, nickname, phone, role, status)
-VALUES ('admin', '123456', '店长小张', '13800000001', 1, 1),
-       ('demo', '123456', '铲屎官小李', '13800000002', 0, 1),
-       ('lily', '123456', '布偶妈妈', '13800000003', 0, 1),
-       ('tom', '123456', '柯基爸爸', '13800000004', 0, 1);
+VALUES ('admin', '$2a$10$0H7kN2LtqrHGNR78vA.k8er8tYWDkRQp3wideUOA0QW9wIPIIvJEm', '店长小张', '13800000001', 1, 1),
+       ('demo', '$2a$10$nMqWlrts0W5CRd9ZQNu9N./oB.oyd8ZeJ/zDav8q7DzkJsyRJJP6y', '铲屎官小李', '13800000002', 0, 1),
+       ('lily', '$2a$10$dGPwr05qfk7JRqHzO9BtDOYTZgqVEAyptVdqnNwqqGrF2KEbL0F2m', '布偶妈妈', '13800000003', 0, 1),
+       ('tom', '$2a$10$n1jg5ZwHEWFv8aIAN34l9egpMwmXRZA6mFrwPj2IzrS3pD//mMfwK', '柯基爸爸', '13800000004', 0, 1);
 
 INSERT INTO t_pet (user_id, name, pet_type, breed, gender, age, weight, remark)
 VALUES (2, '奶糖', '猫', '布偶', 2, 14, 3.60, '怕生，进门先别抱'),
@@ -233,46 +253,62 @@ VALUES ('王阿姨', '13900000001', '猫咪喂养,铲屎,喂药', 2, 4.90, 156, 
        ('赵医生', '13900000004', '术后护理,体征监测', 3, 5.00, 38, 0);
 
 -- 订单：分布在最近 7 天，让数据看板一打开就有图
-INSERT INTO t_order (order_no, user_id, pet_id, service_id, servicer_id, service_name, service_price, amount,
-                     contact_name, contact_phone, address, appoint_date, time_slot, status, remark,
-                     create_time, expire_time, accept_time, finish_time)
-VALUES ('PC20261110001', 2, 1, 1, 1, '猫咪上门喂养·单次', 49.00, 49.00, '小李', '13800000002',
-        '杭州市西湖区文三路 100 号 3-502', DATE_SUB(CURDATE(), INTERVAL 6 DAY), '10:00-12:00', 2, '记得拍视频',
-        DATE_SUB(NOW(), INTERVAL 6 DAY), DATE_SUB(NOW(), INTERVAL 6 DAY), DATE_SUB(NOW(), INTERVAL 6 DAY),
-        DATE_SUB(NOW(), INTERVAL 6 DAY)),
-       ('PC20261111002', 3, 3, 4, 3, '上门洗澡·猫咪', 158.00, 158.00, 'lily', '13800000003',
-        '杭州市余杭区未来科技城 8 幢 1201', DATE_SUB(CURDATE(), INTERVAL 5 DAY), '14:00-16:00', 2, '',
-        DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 5 DAY),
-        DATE_SUB(NOW(), INTERVAL 5 DAY)),
-       ('PC20261112003', 2, 2, 6, 2, '遛狗 60 分钟', 69.00, 69.00, '小李', '13800000002',
-        '杭州市西湖区文三路 100 号', DATE_SUB(CURDATE(), INTERVAL 4 DAY), '18:00-20:00', 2, '',
-        DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 4 DAY),
-        DATE_SUB(NOW(), INTERVAL 4 DAY)),
-       ('PC20261113004', 4, 4, 5, 2, '遛狗 30 分钟', 39.00, 39.00, 'tom', '13800000004',
-        '杭州市滨江区江南大道 200 号', DATE_SUB(CURDATE(), INTERVAL 3 DAY), '08:00-10:00', 3, '临时出差',
-        DATE_SUB(NOW(), INTERVAL 3 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY), NULL, NULL),
-       ('PC20261114005', 3, 3, 1, 1, '猫咪上门喂养·单次', 49.00, 49.00, 'lily', '13800000003',
-        '杭州市余杭区未来科技城 8 幢 1201', DATE_SUB(CURDATE(), INTERVAL 2 DAY), '10:00-12:00', 2, '',
-        DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY),
-        DATE_SUB(NOW(), INTERVAL 2 DAY)),
-       ('PC20261115006', 4, 4, 3, 3, '上门洗澡·小型犬', 128.00, 128.00, 'tom', '13800000004',
-        '杭州市滨江区江南大道 200 号', DATE_SUB(CURDATE(), INTERVAL 1 DAY), '16:00-18:00', 2, '',
-        DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_SUB(NOW(), INTERVAL 1 DAY),
-        DATE_SUB(NOW(), INTERVAL 1 DAY)),
-       ('PC20261116007', 2, 1, 2, 1, '多宠家庭喂养·单次', 79.00, 79.00, '小李', '13800000002',
-        '杭州市西湖区文三路 100 号 3-502', DATE_ADD(CURDATE(), INTERVAL 1 DAY), '10:00-12:00', 1, '两只猫都要喂',
-        DATE_SUB(NOW(), INTERVAL 2 HOUR), DATE_ADD(NOW(), INTERVAL 30 MINUTE), DATE_SUB(NOW(), INTERVAL 1 HOUR),
-        NULL),
-       ('PC20261116008', 4, 4, 5, NULL, '遛狗 30 分钟', 39.00, 39.00, 'tom', '13800000004',
-        '杭州市滨江区江南大道 200 号', CURDATE(), '18:00-20:00', 0, '尽量安排有经验的师傅',
+INSERT INTO t_order (order_no, request_id, request_hash, user_id, pet_id, service_id, servicer_id, service_name, service_price,
+                     amount, service_duration, contact_name, contact_phone, address, appoint_date, time_slot,
+                     appointment_start, appointment_end, status, remark, create_time, expire_time, accept_time,
+                     finish_time)
+VALUES ('PC20261110001', 'legacy-order-1', SHA2('legacy:PC20261110001', 256), 2, 1, 1, 1, '猫咪上门喂养·单次', 49.00, 49.00, 40, '小李', '13800000002',
+        '杭州市西湖区文三路 100 号 3-502', DATE_SUB(CURDATE(), INTERVAL 6 DAY), '10:00-12:00',
+        TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 6 DAY), '10:00:00'),
+        DATE_ADD(TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 6 DAY), '10:00:00'), INTERVAL 40 MINUTE),
+        2, '记得拍视频', DATE_SUB(NOW(), INTERVAL 6 DAY), DATE_SUB(NOW(), INTERVAL 6 DAY),
+        DATE_SUB(NOW(), INTERVAL 6 DAY), DATE_SUB(NOW(), INTERVAL 6 DAY)),
+       ('PC20261111002', 'legacy-order-2', SHA2('legacy:PC20261111002', 256), 3, 3, 4, 3, '上门洗澡·猫咪', 158.00, 158.00, 90, 'lily', '13800000003',
+        '杭州市余杭区未来科技城 8 幢 1201', DATE_SUB(CURDATE(), INTERVAL 5 DAY), '14:00-16:00',
+        TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 5 DAY), '14:00:00'),
+        DATE_ADD(TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 5 DAY), '14:00:00'), INTERVAL 90 MINUTE),
+        2, '', DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 5 DAY),
+        DATE_SUB(NOW(), INTERVAL 5 DAY), DATE_SUB(NOW(), INTERVAL 5 DAY)),
+       ('PC20261112003', 'legacy-order-3', SHA2('legacy:PC20261112003', 256), 2, 2, 6, 2, '遛狗 60 分钟', 69.00, 69.00, 70, '小李', '13800000002',
+        '杭州市西湖区文三路 100 号', DATE_SUB(CURDATE(), INTERVAL 4 DAY), '18:00-20:00',
+        TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 4 DAY), '18:00:00'),
+        DATE_ADD(TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 4 DAY), '18:00:00'), INTERVAL 70 MINUTE),
+        2, '', DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 4 DAY),
+        DATE_SUB(NOW(), INTERVAL 4 DAY), DATE_SUB(NOW(), INTERVAL 4 DAY)),
+       ('PC20261113004', 'legacy-order-4', SHA2('legacy:PC20261113004', 256), 4, 4, 5, 2, '遛狗 30 分钟', 39.00, 39.00, 40, 'tom', '13800000004',
+        '杭州市滨江区江南大道 200 号', DATE_SUB(CURDATE(), INTERVAL 3 DAY), '08:00-10:00',
+        TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 3 DAY), '08:00:00'),
+        DATE_ADD(TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 3 DAY), '08:00:00'), INTERVAL 40 MINUTE),
+        3, '临时出差', DATE_SUB(NOW(), INTERVAL 3 DAY), DATE_SUB(NOW(), INTERVAL 3 DAY), NULL, NULL),
+       ('PC20261114005', 'legacy-order-5', SHA2('legacy:PC20261114005', 256), 3, 3, 1, 1, '猫咪上门喂养·单次', 49.00, 49.00, 40, 'lily', '13800000003',
+        '杭州市余杭区未来科技城 8 幢 1201', DATE_SUB(CURDATE(), INTERVAL 2 DAY), '10:00-12:00',
+        TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 2 DAY), '10:00:00'),
+        DATE_ADD(TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 2 DAY), '10:00:00'), INTERVAL 40 MINUTE),
+        2, '', DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY),
+        DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 2 DAY)),
+       ('PC20261115006', 'legacy-order-6', SHA2('legacy:PC20261115006', 256), 4, 4, 3, 3, '上门洗澡·小型犬', 128.00, 128.00, 90, 'tom', '13800000004',
+        '杭州市滨江区江南大道 200 号', DATE_SUB(CURDATE(), INTERVAL 1 DAY), '16:00-18:00',
+        TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 1 DAY), '16:00:00'),
+        DATE_ADD(TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 1 DAY), '16:00:00'), INTERVAL 90 MINUTE),
+        2, '', DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_SUB(NOW(), INTERVAL 1 DAY),
+        DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_SUB(NOW(), INTERVAL 1 DAY)),
+       ('PC20261116007', 'legacy-order-7', SHA2('legacy:PC20261116007', 256), 2, 1, 2, 1, '多宠家庭喂养·单次', 79.00, 79.00, 60, '小李', '13800000002',
+        '杭州市西湖区文三路 100 号 3-502', DATE_ADD(CURDATE(), INTERVAL 1 DAY), '10:00-12:00',
+        TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 1 DAY), '10:00:00'),
+        DATE_ADD(TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 1 DAY), '10:00:00'), INTERVAL 60 MINUTE),
+        1, '两只猫都要喂', DATE_SUB(NOW(), INTERVAL 2 HOUR), DATE_ADD(NOW(), INTERVAL 30 MINUTE),
+        DATE_SUB(NOW(), INTERVAL 1 HOUR), NULL),
+       ('PC20261116008', 'legacy-order-8', SHA2('legacy:PC20261116008', 256), 4, 4, 5, NULL, '遛狗 30 分钟', 39.00, 39.00, 40, 'tom', '13800000004',
+        '杭州市滨江区江南大道 200 号', CURDATE(), '18:00-20:00', TIMESTAMP(CURDATE(), '18:00:00'),
+        DATE_ADD(TIMESTAMP(CURDATE(), '18:00:00'), INTERVAL 40 MINUTE), 0, '尽量安排有经验的师傅',
         DATE_SUB(NOW(), INTERVAL 10 MINUTE), DATE_ADD(NOW(), INTERVAL 30 MINUTE), NULL, NULL);
 
-INSERT INTO t_order_log (order_id, from_status, to_status, operator_type, operator_id, remark)
-VALUES (1, 0, 1, 1, 1, '商家接单'),
-       (1, 1, 2, 1, 1, '服务完成'),
-       (4, 0, 3, 0, 4, '用户取消：临时出差'),
-       (7, 0, 1, 1, 1, '商家接单，指派王阿姨'),
-       (8, 0, 0, 0, 4, '用户催单');
+INSERT INTO t_order_log (order_id, from_status, to_status, event_type, operator_type, operator_id, remark)
+VALUES (1, 0, 1, 'STATUS_CHANGE', 1, 1, '商家接单'),
+       (1, 1, 2, 'STATUS_CHANGE', 1, 1, '服务完成'),
+       (4, 0, 3, 'STATUS_CHANGE', 0, 4, '用户取消：临时出差'),
+       (7, 0, 1, 'STATUS_CHANGE', 1, 1, '商家接单，指派王阿姨'),
+       (8, 0, 0, 'URGED', 0, 4, '用户催单');
 
 INSERT INTO t_review (order_id, user_id, service_id, servicer_id, rating, content)
 VALUES (1, 2, 1, 1, 5, '王阿姨很细心，猫粮和视频都拍得很清楚'),

@@ -26,8 +26,6 @@ public interface UserMapper {
 
     long countPage(@Param("keyword") String keyword);
 
-    long countAll();
-
     /**
      * 查出密码还是明文的账号（初始化脚本里写的是 123456）。
      * 启动时会把它们统一加密，避免脚本里塞 bcrypt 串抄错。

@@ -9,6 +9,7 @@ import com.petcare.util.TokenService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -28,8 +29,7 @@ import java.nio.charset.StandardCharsets;
  * 4. 访问 /api/admin/** 但不是管理员 -> 403
  * 5. 通过后把用户放进 ThreadLocal，并给 Token 续期
  * <p>
- * 说明：这里返回 HTTP 200 + body.code=401，而不是 HTTP 401，
- * 让前端只需处理业务 code 一种分支，避免 axios 走 error 回调时拿不到提示语。
+ * 说明：认证失败同时返回 HTTP 401/403 和统一 Result，前端 axios 会从响应体读取提示。
  */
 @Slf4j
 @Component
@@ -49,7 +49,8 @@ public class AuthInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // 2. 用户端服务浏览类接口允许游客访问（首页数据要能直接看）
+        // 2. 登录/注册和用户端浏览接口允许无 Token 访问；
+        // 若请求已带 Token，也在这里解析，限流切面才能按用户而非 IP 计数。
         if (isPublicApi(request)) {
             // 若带了 Token 也顺便解析，方便后续接口做个性化，不强制
             parseTokenQuietly(request);
@@ -63,14 +64,14 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
         LoginUser loginUser = tokenService.getLoginUser(token);
         if (loginUser == null) {
-            writeJson(response, Result.fail(ResultCode.UNAUTHORIZED));
+            writeJson(response, Result.fail(ResultCode.UNAUTHORIZED), HttpStatus.UNAUTHORIZED);
             return false;
         }
 
         // 4. 后台接口校验角色
         String uri = request.getRequestURI();
         if (uri.startsWith("/api/admin") && !loginUser.isAdmin()) {
-            writeJson(response, Result.fail(ResultCode.FORBIDDEN));
+            writeJson(response, Result.fail(ResultCode.FORBIDDEN), HttpStatus.FORBIDDEN);
             return false;
         }
 
@@ -93,10 +94,12 @@ public class AuthInterceptor implements HandlerInterceptor {
     private boolean isPublicApi(HttpServletRequest request) {
         String uri = request.getRequestURI();
         boolean isGet = "GET".equalsIgnoreCase(request.getMethod());
-        return isGet && (uri.equals("/api/services")
+        boolean authEntry = "POST".equalsIgnoreCase(request.getMethod())
+                && (uri.equals("/api/auth/login") || uri.equals("/api/auth/register"));
+        return authEntry || (isGet && (uri.equals("/api/services")
                 || uri.equals("/api/services/hot")
                 || uri.equals("/api/categories")
-                || uri.matches("/api/services/\\d+"));
+                || uri.matches("/api/services/\\d+")));
     }
 
     private void parseTokenQuietly(HttpServletRequest request) {
@@ -109,12 +112,13 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
     }
 
-    private void writeJson(HttpServletResponse response, Result<?> result) throws Exception {
-        response.setStatus(HttpServletResponse.SC_OK);
+    private void writeJson(HttpServletResponse response, Result<?> result, HttpStatus status) throws Exception {
+        response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         try (PrintWriter writer = response.getWriter()) {
             writer.write(objectMapper.writeValueAsString(result));
         }
     }
+
 }

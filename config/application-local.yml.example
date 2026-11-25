@@ -1,14 +1,17 @@
 # ===================================================================
-# 本地配置模板
+# 本地配置模板（位于项目根目录 config/，不会被 Maven 打进 Jar）
 #
 # 使用方法：
-#   1. 复制本文件为 application-local.yml（去掉 .example 后缀）
+#   1. 在项目根目录执行 copy config\application-local.yml.example config\application-local.yml
 #   2. 把下面的占位符改成你自己环境的账号密码
-#   3. application-local.yml 已被 .gitignore 忽略，不会提交到仓库
+#   3. 用 SPRING_PROFILES_ACTIVE=local 启动后端
+#   4. application-local.yml 已被 .gitignore 忽略，不会提交到仓库
 #
 # 也可以不用本文件，直接设置环境变量：
 #   MYSQL_PASSWORD / MYSQL_USERNAME / MYSQL_HOST / MYSQL_PORT / MYSQL_DB
 #   REDIS_PASSWORD / REDIS_HOST / REDIS_PORT
+#
+# 如果从其他工作目录启动，可设置 PET_LOCAL_CONFIG 指向这个文件的绝对路径。
 # ===================================================================
 spring:
   datasource:

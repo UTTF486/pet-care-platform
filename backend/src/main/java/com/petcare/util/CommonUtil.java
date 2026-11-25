@@ -9,8 +9,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.concurrent.ThreadLocalRandom;
+import java.time.ZoneId;
 
 /**
  * 一些零散工具方法。放一起，减少类爆炸。
@@ -18,23 +17,18 @@ import java.util.concurrent.ThreadLocalRandom;
 @Component
 public class CommonUtil {
 
-    private static final DateTimeFormatter ORDER_NO_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
 
     @Value("${pet.order.timeout-minutes:30}")
     private int timeoutMinutes;
 
-    /**
-     * 生成业务订单号：PC + 秒级时间 + 4 位随机数。
-     * 数据库还有唯一索引兜底，极端重复会直接报错而不是写脏数据。
-     */
-    public String generateOrderNo() {
-        return "PC" + LocalDateTime.now().format(ORDER_NO_FORMAT)
-                + String.format("%04d", ThreadLocalRandom.current().nextInt(10000));
+    public LocalDateTime now() {
+        return LocalDateTime.now(BUSINESS_ZONE);
     }
 
     /** 待接单订单的自动取消时间 */
     public LocalDateTime buildExpireTime() {
-        return LocalDateTime.now().plusMinutes(timeoutMinutes);
+        return now().plusMinutes(timeoutMinutes);
     }
 
     /** 取当前登录用户 id，未登录直接抛 401 */

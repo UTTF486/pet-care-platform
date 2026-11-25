@@ -25,4 +25,7 @@ public @interface RateLimit {
 
     /** 触发限流时的提示语 */
     String message() default "操作太频繁了，请稍后再试";
+
+    /** Redis 故障时是否允许请求继续。认证接口建议设为 false，普通浏览接口保持 true。 */
+    boolean failOpen() default true;
 }

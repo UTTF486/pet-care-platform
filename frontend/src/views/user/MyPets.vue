@@ -38,7 +38,7 @@
     <el-dialog v-model="dialogVisible" :title="form.id ? '编辑宠物' : '添加宠物'" width="480px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="宠物名" prop="name">
-          <el-input v-model="form.name" placeholder="如 奶糖" />
+          <el-input v-model="form.name" maxlength="32" placeholder="如 奶糖" />
         </el-form-item>
         <el-form-item label="类型" prop="petType">
           <el-radio-group v-model="form.petType">
@@ -48,7 +48,7 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="品种">
-          <el-input v-model="form.breed" placeholder="如 布偶 / 柯基" />
+          <el-input v-model="form.breed" maxlength="32" placeholder="如 布偶 / 柯基" />
         </el-form-item>
         <el-form-item label="性别">
           <el-radio-group v-model="form.gender">
@@ -58,15 +58,16 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="年龄(月)">
-          <el-input-number v-model="form.age" :min="0" :max="360" />
+          <el-input-number v-model="form.age" :min="0" :max="600" />
         </el-form-item>
         <el-form-item label="体重(kg)">
-          <el-input-number v-model="form.weight" :min="0" :max="120" :precision="2" :step="0.5" />
+          <el-input-number v-model="form.weight" :min="0.01" :max="999.99" :precision="2" :step="0.5" />
         </el-form-item>
         <el-form-item label="备注">
           <el-input
             v-model="form.remark"
             type="textarea"
+            maxlength="255"
             :rows="3"
             placeholder="如：怕生、肠胃敏感只吃自带粮、需要喂药"
           />

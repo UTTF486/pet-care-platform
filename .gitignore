@@ -16,6 +16,7 @@ target/
 
 # ============ 敏感配置（严禁提交）============
 # 本地配置文件：含真实数据库 / Redis 密码，只保留 .example 模板
+config/application-local.yml
 application-local.yml
 application-*.local.yml
 *.local.yml

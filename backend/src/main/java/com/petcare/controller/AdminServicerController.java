@@ -5,9 +5,9 @@ import com.petcare.common.Result;
 import com.petcare.entity.Servicer;
 import com.petcare.service.ServicerService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import javax.validation.Valid;
 import java.util.List;
 
 /**
@@ -34,17 +34,16 @@ public class AdminServicerController {
     }
 
     @PostMapping
-    public Result<Long> save(@RequestBody @Valid Servicer servicer) {
+    public Result<Long> save(@RequestBody @Validated(Servicer.Create.class) Servicer servicer) {
         return Result.success("新增成功", servicerService.save(servicer));
     }
 
     /**
-     * 修改服务师。
-     * 注意：这里故意不加 @Valid —— 前端切换"休息/可接单"时只传 status，
-     * 若强校验 name 会直接 400。新增接口才需要完整校验。
+     * 修改服务师。Update 分组允许只传 status 等单个字段。
      */
     @PutMapping("/{id}")
-    public Result<Void> update(@PathVariable Long id, @RequestBody Servicer servicer) {
+    public Result<Void> update(@PathVariable Long id,
+                               @RequestBody @Validated(Servicer.Update.class) Servicer servicer) {
         servicer.setId(id);
         servicerService.update(servicer);
         return Result.success();

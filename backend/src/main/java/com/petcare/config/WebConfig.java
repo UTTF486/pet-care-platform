@@ -37,8 +37,8 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(authInterceptor)
                 // 只拦业务接口
                 .addPathPatterns("/api/**")
-                // 登录注册不需要 Token
-                .excludePathPatterns("/api/auth/login", "/api/auth/register", "/error");
+                // 登录注册由拦截器的 public 规则放行，但仍解析可选 Token 以支持用户维度限流
+                .excludePathPatterns("/error");
     }
 
     /**

@@ -19,7 +19,17 @@ public interface OrderMapper {
 
     int insert(Order order);
 
+    Order selectByUserAndRequestId(@Param("userId") Long userId,
+                                   @Param("requestId") String requestId);
+
+    /** 捕获唯一键冲突后使用当前读，避免 REPEATABLE READ 旧快照看不到并发提交。 */
+    Order selectByUserAndRequestIdForUpdate(@Param("userId") Long userId,
+                                            @Param("requestId") String requestId);
+
     OrderVO selectDetail(@Param("id") Long id);
+
+    /** 状态流转只需订单主表字段，避免每次操作都执行五表 JOIN 和评价子查询。 */
+    Order selectState(@Param("id") Long id);
 
     List<OrderVO> selectUserPage(@Param("userId") Long userId,
                                  @Param("status") Integer status,
@@ -47,19 +57,20 @@ public interface OrderMapper {
     /** 超时取消：只允许 0 -> 3，避免把已经接单的订单误取消 */
     int cancelTimeout(@Param("id") Long id, @Param("reason") String reason);
 
+    /** 同一服务师已有待服务订单与预约区间重叠时返回冲突订单 id。 */
+    List<Long> selectServicerScheduleConflicts(@Param("servicerId") Long servicerId,
+                                               @Param("appointmentStart") LocalDateTime appointmentStart,
+                                               @Param("appointmentEnd") LocalDateTime appointmentEnd,
+                                               @Param("excludeOrderId") Long excludeOrderId);
+
+    /** 删除宠物前判断是否已有历史订单 */
+    long countByPetId(@Param("petId") Long petId);
+
     /** 定时任务：捞出已经超时的待接单订单 */
     List<Order> selectTimeoutList(@Param("limit") int limit);
 
-    long countByStatus(@Param("status") Integer status);
-
-    long countAll();
-
-    /**
-     * 指定时间范围内的订单量与营收。
-     * start 为 null 表示统计全部。
-     * 返回 map：orderCount / revenue
-     */
-    Map<String, Object> selectStatRange(@Param("start") LocalDateTime start);
+    /** 看板指标一次查询完成，减少后台首页的数据库往返。 */
+    Map<String, Object> selectOverview(@Param("todayStart") LocalDateTime todayStart);
 
     /**
      * 报表趋势：按传入的日期格式聚合。

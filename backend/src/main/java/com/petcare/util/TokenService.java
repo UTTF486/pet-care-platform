@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petcare.common.LoginUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -88,21 +89,24 @@ public class TokenService {
      * 使用拦截器已经解析出的用户续期，避免一次请求重复读取两次 Redis。
      */
     public void refresh(String token, LoginUser user) {
-        redisTemplate.expire(TOKEN_KEY_PREFIX + token, EXPIRE_SECONDS, TimeUnit.SECONDS);
-        if (user != null) {
-            redisTemplate.expire(USER_KEY_PREFIX + user.getId(), EXPIRE_SECONDS, TimeUnit.SECONDS);
-        }
+        redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            byte[] serializerToken = redisTemplate.getStringSerializer()
+                    .serialize(TOKEN_KEY_PREFIX + token);
+            connection.expire(serializerToken, EXPIRE_SECONDS);
+            if (user != null) {
+                byte[] userKey = redisTemplate.getStringSerializer()
+                        .serialize(USER_KEY_PREFIX + user.getId());
+                connection.expire(userKey, EXPIRE_SECONDS);
+            }
+            return null;
+        });
     }
 
     /**
-     * 退出登录 / 强制下线。
+     * 退出当前设备，只删除当前 Token；强制用户下线由 kickOut 负责。
      */
     public void removeToken(String token) {
-        String userId = redisTemplate.opsForValue().get(TOKEN_KEY_PREFIX + token);
         redisTemplate.delete(TOKEN_KEY_PREFIX + token);
-        if (userId != null) {
-            redisTemplate.delete(USER_KEY_PREFIX + userId);
-        }
     }
 
     /**

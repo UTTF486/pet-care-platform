@@ -4,12 +4,14 @@
 
     <insert id="insert" parameterType="com.petcare.entity.OrderLog"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO t_order_log (order_id, from_status, to_status, operator_type, operator_id, remark, create_time)
-        VALUES (#{orderId}, #{fromStatus}, #{toStatus}, #{operatorType}, #{operatorId}, IFNULL(#{remark}, ''), NOW())
+        INSERT INTO t_order_log (order_id, from_status, to_status, event_type, operator_type,
+                                 operator_id, remark, create_time)
+        VALUES (#{orderId}, #{fromStatus}, #{toStatus}, #{eventType}, #{operatorType},
+                #{operatorId}, IFNULL(#{remark}, ''), NOW())
     </insert>
 
     <select id="selectByOrderId" resultType="com.petcare.entity.OrderLog">
-        SELECT id, order_id, from_status, to_status, operator_type, operator_id, remark, create_time
+        SELECT id, order_id, from_status, to_status, event_type, operator_type, operator_id, remark, create_time
         FROM t_order_log
         WHERE order_id = #{orderId}
         ORDER BY id ASC

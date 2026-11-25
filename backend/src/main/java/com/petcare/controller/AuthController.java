@@ -3,6 +3,7 @@ package com.petcare.controller;
 import com.petcare.common.Result;
 import com.petcare.common.UserContext;
 import com.petcare.dto.AccountDTO;
+import com.petcare.dto.PasswordChangeDTO;
 import com.petcare.entity.User;
 import com.petcare.service.AuthService;
 import com.petcare.vo.LoginVO;
@@ -13,7 +14,7 @@ import javax.validation.Valid;
 
 /**
  * 认证相关接口。
- * 登录、注册两个接口在 WebConfig 里被排除在拦截器之外。
+ * 登录、注册由 AuthInterceptor 的公开规则放行，其余接口需要 Token。
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -48,5 +49,12 @@ public class AuthController {
     @GetMapping("/profile")
     public Result<User> profile() {
         return Result.success(authService.getProfile(UserContext.getUserId()));
+    }
+
+    /** 当前用户修改密码；成功后所有旧 Token 失效。 */
+    @PutMapping("/password")
+    public Result<Void> changePassword(@RequestBody @Valid PasswordChangeDTO dto) {
+        authService.changePassword(UserContext.getUserId(), dto);
+        return Result.success("密码已修改，请重新登录", null);
     }
 }

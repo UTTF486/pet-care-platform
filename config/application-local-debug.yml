@@ -1,0 +1,11 @@
+# 本地开发调试配置（不含密码）。
+# 仅在 SPRING_PROFILES_ACTIVE=local 时由 application.yml 导入。
+# 如不希望 SQL 日志过长，可通过 MYBATIS_LOG_IMPL / APP_LOG_LEVEL 覆盖。
+mybatis:
+  configuration:
+    log-impl: ${MYBATIS_LOG_IMPL:org.apache.ibatis.logging.stdout.StdOutImpl}
+
+logging:
+  level:
+    com.petcare: ${APP_LOG_LEVEL:debug}
+    com.petcare.mapper: ${MAPPER_LOG_LEVEL:debug}

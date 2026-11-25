@@ -5,9 +5,8 @@ import com.petcare.common.Result;
 import com.petcare.entity.ServiceItem;
 import com.petcare.service.ServiceCatalogService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
-import javax.validation.Valid;
 
 /**
  * 后台 - 服务管理（上下架 / 增删改）。
@@ -30,12 +29,13 @@ public class AdminServiceController {
     }
 
     @PostMapping
-    public Result<Long> save(@RequestBody @Valid ServiceItem item) {
+    public Result<Long> save(@RequestBody @Validated(ServiceItem.Create.class) ServiceItem item) {
         return Result.success("新增成功", serviceCatalogService.save(item));
     }
 
     @PutMapping("/{id}")
-    public Result<Void> update(@PathVariable Long id, @RequestBody @Valid ServiceItem item) {
+    public Result<Void> update(@PathVariable Long id,
+                               @RequestBody @Validated(ServiceItem.Update.class) ServiceItem item) {
         item.setId(id);   // 以路径上的 id 为准，防止 body 与 url 不一致
         serviceCatalogService.update(item);
         return Result.success();

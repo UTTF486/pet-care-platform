@@ -103,14 +103,18 @@
         </el-descriptions-item>
       </el-descriptions>
 
-      <el-timeline v-if="current" class="timeline">
-        <el-timeline-item :timestamp="current.createTime" type="primary">提交预约</el-timeline-item>
-        <el-timeline-item v-if="current.acceptTime" :timestamp="current.acceptTime" type="success">
-          商家接单{{ current.servicerName ? '，指派 ' + current.servicerName : '' }}
+      <el-timeline v-if="orderLogs.length" class="timeline">
+        <el-timeline-item
+          v-for="log in orderLogs"
+          :key="log.id"
+          :timestamp="log.createTime"
+          :type="logType(log.toStatus)"
+        >
+          {{ log.remark }}
+          <span class="log-operator">{{ operatorText(log.operatorType) }}</span>
         </el-timeline-item>
-        <el-timeline-item v-if="current.finishTime" :timestamp="current.finishTime" type="success">服务完成</el-timeline-item>
-        <el-timeline-item v-if="current.cancelTime" :timestamp="current.cancelTime" type="info">订单取消</el-timeline-item>
       </el-timeline>
+      <el-empty v-else-if="current" description="暂无流转记录" :image-size="60" />
     </el-dialog>
 
     <!-- 评价 -->
@@ -139,7 +143,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { cancelOrder, listMyOrders, reviewOrder, urgeOrder } from '../../api'
+import { cancelOrder, getOrderLogs, listMyOrders, reviewOrder, urgeOrder } from '../../api'
 
 const router = useRouter()
 
@@ -161,6 +165,7 @@ const total = ref(0)
 const detailVisible = ref(false)
 const reviewVisible = ref(false)
 const current = ref(null)
+const orderLogs = ref([])
 const submitting = ref(false)
 const reviewForm = reactive({ orderId: null, rating: 5, content: '' })
 
@@ -186,9 +191,19 @@ function handleTabChange() {
   loadOrders()
 }
 
-function openDetail(order) {
+async function openDetail(order) {
   current.value = order
+  orderLogs.value = []
   detailVisible.value = true
+  orderLogs.value = await getOrderLogs(order.id)
+}
+
+function logType(status) {
+  return { 0: 'warning', 1: 'primary', 2: 'success', 3: 'info' }[status] || 'info'
+}
+
+function operatorText(type) {
+  return { 0: '用户', 1: '商家', 2: '系统' }[type] || '系统'
 }
 
 async function handleUrge(order) {
@@ -257,6 +272,12 @@ onMounted(loadOrders)
 .order-no {
   font-weight: 600;
   color: #1f2d2a;
+}
+
+.log-operator {
+  margin-left: 8px;
+  color: #9aaba7;
+  font-size: 12px;
 }
 
 .create-time {

@@ -8,6 +8,7 @@ import com.petcare.mapper.ServicerMapper;
 import com.petcare.util.PageUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 
@@ -54,9 +55,21 @@ public class ServicerService {
         if (servicer.getId() == null) {
             throw new BusinessException(ResultCode.PARAM_ERROR, "缺少服务师 id");
         }
+        if (!hasUpdatableField(servicer)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "没有可更新的服务师字段");
+        }
         int rows = servicerMapper.update(servicer);
         if (rows == 0) {
             throw new BusinessException(ResultCode.NOT_FOUND, "服务师不存在");
         }
+    }
+
+    private boolean hasUpdatableField(Servicer servicer) {
+        return StringUtils.hasText(servicer.getName())
+                || servicer.getPhone() != null
+                || servicer.getAvatar() != null
+                || servicer.getSkills() != null
+                || servicer.getLevel() != null
+                || servicer.getStatus() != null;
     }
 }

@@ -65,7 +65,7 @@
     <el-dialog v-model="dialogVisible" :title="form.id ? '编辑服务' : '新增服务'" width="520px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
         <el-form-item label="服务名称" prop="name">
-          <el-input v-model="form.name" placeholder="如 猫咪上门喂养·单次" />
+          <el-input v-model="form.name" maxlength="64" placeholder="如 猫咪上门喂养·单次" />
         </el-form-item>
         <el-form-item label="所属品类" prop="categoryId">
           <el-select v-model="form.categoryId" placeholder="请选择" style="width: 100%">
@@ -73,13 +73,26 @@
           </el-select>
         </el-form-item>
         <el-form-item label="价格(元)" prop="price">
-          <el-input-number v-model="form.price" :min="1" :max="9999" :precision="2" :step="10" style="width: 180px" />
+          <el-input-number
+            v-model="form.price"
+            :min="0.01"
+            :max="99999999.99"
+            :precision="2"
+            :step="10"
+            style="width: 220px"
+          />
         </el-form-item>
         <el-form-item label="时长(分钟)">
-          <el-input-number v-model="form.duration" :min="10" :max="600" :step="10" style="width: 180px" />
+          <el-input-number v-model="form.duration" :min="1" :max="1440" :step="10" style="width: 180px" />
         </el-form-item>
         <el-form-item label="服务说明">
-          <el-input v-model="form.description" type="textarea" :rows="3" placeholder="写清楚包含哪些动作，减少沟通成本" />
+          <el-input
+            v-model="form.description"
+            type="textarea"
+            :rows="3"
+            maxlength="500"
+            placeholder="写清楚包含哪些动作，减少沟通成本"
+          />
         </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="form.status">

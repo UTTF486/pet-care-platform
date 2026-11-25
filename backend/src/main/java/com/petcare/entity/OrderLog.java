@@ -18,6 +18,8 @@ public class OrderLog {
     private Integer fromStatus;
     /** 变更后状态 */
     private Integer toStatus;
+    /** STATUS_CHANGE / ORDER_CREATED / URGED / REVIEWED / TIMEOUT_CANCEL */
+    private String eventType;
     /** 0-用户 1-商家 2-系统 */
     private Integer operatorType;
     private Long operatorId;

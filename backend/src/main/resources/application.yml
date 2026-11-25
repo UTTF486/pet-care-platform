@@ -1,5 +1,6 @@
 server:
   port: 8080
+  shutdown: graceful
   servlet:
     encoding:
       charset: UTF-8
@@ -13,13 +14,24 @@ spring:
   # 敏感信息处理约定（提交到 GitHub 也不会泄露密码）
   #
   # 本文件不含任何真实密码，全部通过 ${环境变量:默认值} 注入。
-  #   本地开发：把 application-local.yml.example 复制成 application-local.yml，
-  #             填入自己的数据库 / Redis 密码。该文件已在 .gitignore 中，不会被提交。
+  #   本地开发：把项目根目录 config/application-local.yml.example 复制成
+  #             config/application-local.yml，填入自己的数据库 / Redis 密码。
+  #             该文件在源码目录之外，已在 .gitignore 中，不会打进 Jar。
   #   服务器部署：直接导出 MYSQL_PASSWORD / REDIS_PASSWORD 等环境变量即可，
   #             连配置文件都不用改（Docker / CI 场景常用）。
   # ===================================================================
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:local}
+    # 默认按生产配置启动，不自动加载本地密码；本地开发显式设为 local。
+    active: ${SPRING_PROFILES_ACTIVE:prod}
+
+  jackson:
+    time-zone: Asia/Shanghai
+
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
 
   # ---------------- 数据源 ----------------
   datasource:
@@ -31,6 +43,8 @@ spring:
       minimum-idle: 5
       maximum-pool-size: 15
       connection-timeout: 30000
+      # 让 MySQL 的 NOW() 与 JVM 的 Asia/Shanghai 时间保持一致
+      connection-init-sql: SET time_zone = '+08:00'
 
   # ---------------- Redis ----------------
   redis:
@@ -44,6 +58,7 @@ spring:
         max-active: 8
         max-idle: 8
         min-idle: 0
+        max-wait: 1000ms
 
 # ---------------- MyBatis ----------------
 mybatis:
@@ -51,21 +66,43 @@ mybatis:
   type-aliases-package: com.petcare.entity      # XML 里可直接写 User 而不用全限定名
   configuration:
     map-underscore-to-camel-case: true          # create_time -> createTime 自动映射
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl   # 控制台打印 SQL，调试神器；上线要关
+    log-impl: ${MYBATIS_LOG_IMPL:org.apache.ibatis.logging.slf4j.Slf4jImpl}
 
 # ---------------- 业务自定义配置 ----------------
 pet:
+  proxy:
+    # 只把直连地址在名单中的代理当作可信代理；默认仅本机 Nginx/网关。
+    trusted-addresses: ${TRUSTED_PROXY_ADDRESSES:127.0.0.1/32,::1/128}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
   order:
     timeout-minutes: 30          # 待接单超时时间(分钟)，定时任务据此计算 expire_time
+    timeout-lock-seconds: 300    # 超时任务 Redis 锁 TTL，避免多实例重复扫描
   cache:
     hot-service-seconds: 600      # 热门服务缓存 10 分钟
     service-detail-seconds: 1800  # 服务详情缓存 30 分钟
     stats-seconds: 60             # 看板数据缓存 60 秒
-  # 限流的次数/窗口写在 OrderService 的 @RateLimit 注解上（注解值必须是编译期常量）
+  # 限流的次数/窗口写在各业务方法的 @RateLimit 注解上（注解值必须是编译期常量）
 
 logging:
   level:
-    com.petcare: debug
+    com.petcare: ${APP_LOG_LEVEL:info}
+    com.petcare.mapper: ${MAPPER_LOG_LEVEL:info}
     org.springframework.web: info
+
+---
+# 只有显式启用 local profile 时，才从项目根目录外置配置加载密码和调试日志。
+# 配置文件在 Jar 外；生产环境通过环境变量提供连接信息，不加载这里的秘密。
+spring:
+  config:
+    activate:
+      on-profile: local
+    import:
+      - optional:file:${PET_LOCAL_CONFIG:./config/application-local.yml}
+      - optional:file:${PET_LOCAL_CONFIG_FALLBACK:../config/application-local.yml}
+      - optional:file:${PET_LOCAL_DEBUG_CONFIG:./config/application-local-debug.yml}
+      - optional:file:${PET_LOCAL_DEBUG_CONFIG_FALLBACK:../config/application-local-debug.yml}
+# 仅本地开发允许把 SQL 种子明文密码升级为 BCrypt。
+pet:
+  security:
+    upgrade-seed-passwords: true

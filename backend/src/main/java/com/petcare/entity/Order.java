@@ -18,6 +18,10 @@ public class Order {
 
     private Long id;
     private String orderNo;
+    /** 客户端幂等请求号，和 user_id 组成唯一键。 */
+    private String requestId;
+    /** requestId 对应的下单参数指纹，用于拒绝同 requestId 不同 payload。 */
+    private String requestHash;
     private Long userId;
     private Long petId;
     private Long serviceId;
@@ -26,6 +30,8 @@ public class Order {
     private String serviceName;
     private BigDecimal servicePrice;
     private BigDecimal amount;
+    /** 下单时的服务时长快照，避免后续服务改时长影响历史订单。 */
+    private Integer serviceDuration;
 
     private String contactName;
     private String contactPhone;
@@ -35,6 +41,12 @@ public class Order {
     private LocalDate appointDate;
 
     private String timeSlot;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime appointmentStart;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime appointmentEnd;
 
     /** 0-待接单 1-待服务 2-已完成 3-已取消，取值见 OrderStatus */
     private Integer status;

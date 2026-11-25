@@ -77,7 +77,7 @@
           </el-form-item>
 
           <el-form-item label="联系人" prop="contactName">
-            <el-input v-model="form.contactName" placeholder="上门时联系谁" />
+          <el-input v-model="form.contactName" maxlength="32" placeholder="上门时联系谁" />
           </el-form-item>
 
           <el-form-item label="联系电话" prop="contactPhone">
@@ -85,11 +85,23 @@
           </el-form-item>
 
           <el-form-item label="上门地址" prop="address">
-            <el-input v-model="form.address" type="textarea" :rows="2" placeholder="小区、楼栋、门牌号，越详细越好" />
+            <el-input
+              v-model="form.address"
+              type="textarea"
+              :rows="2"
+              maxlength="255"
+              placeholder="小区、楼栋、门牌号，越详细越好"
+            />
           </el-form-item>
 
           <el-form-item label="备注（选填）">
-            <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="如：猫怕生，进门先别抱；钥匙放门口鞋柜" />
+            <el-input
+              v-model="form.remark"
+              type="textarea"
+              :rows="2"
+              maxlength="255"
+              placeholder="如：猫怕生，进门先别抱；钥匙放门口鞋柜"
+            />
           </el-form-item>
 
           <div class="amount-row">
@@ -97,7 +109,14 @@
             <span class="price big">{{ service.price }}</span>
           </div>
 
-          <el-button type="primary" size="large" class="submit" :loading="submitting" @click="handleSubmit">
+          <el-button
+            type="primary"
+            size="large"
+            class="submit"
+            :loading="submitting"
+            :disabled="orderCompleted"
+            @click="handleSubmit"
+          >
             确认预约
           </el-button>
         </el-form>
@@ -108,9 +127,11 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { isNavigationFailure, useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createOrder, getService, listPets } from '../../api'
+import { getUser } from '../../store/user'
+import { clearRequestId, getOrCreateRequestId, rotateRequestId } from '../../utils/idempotency.mjs'
 
 const route = useRoute()
 const router = useRouter()
@@ -119,9 +140,10 @@ const service = ref(null)
 const pets = ref([])
 const loading = ref(false)
 const submitting = ref(false)
+const orderCompleted = ref(false)
 const formRef = ref()
 
-// 与后端 OrderService.TIME_SLOTS 保持一致，后端还会再校验一次
+// 与后端 AppointmentTimeUtil 的时段白名单保持一致，后端还会校验当天时段是否已开始
 const timeSlots = ['08:00-10:00', '10:00-12:00', '14:00-16:00', '16:00-18:00', '18:00-20:00']
 
 const form = reactive({
@@ -146,6 +168,20 @@ const rules = {
   address: [{ required: true, message: '请填写上门地址', trigger: 'blur' }]
 }
 
+function requestStorageKey() {
+  const userId = getUser()?.id || 'anonymous'
+  return `order-request:${userId}:${encodeURIComponent(JSON.stringify([
+    service.value?.id,
+    form.petId,
+    form.appointDate,
+    form.timeSlot,
+    form.contactName,
+    form.contactPhone,
+    form.address,
+    form.remark
+  ]))}`
+}
+
 /** 今天之前的日期不可选 */
 function disabledDate(date) {
   const today = new Date()
@@ -154,12 +190,29 @@ function disabledDate(date) {
 }
 
 async function handleSubmit() {
-  await formRef.value.validate()
+  if (submitting.value || orderCompleted.value) return
   submitting.value = true
+  let storageKey = null
   try {
-    await createOrder({ ...form, serviceId: service.value.id })
+    await formRef.value.validate()
+    storageKey = requestStorageKey()
+    const requestId = getOrCreateRequestId(storageKey)
+    await createOrder({ ...form, serviceId: service.value.id, requestId })
+    orderCompleted.value = true
+    const navigation = await router.push('/user/orders')
+    if (isNavigationFailure(navigation)) {
+      ElMessage.warning('订单已创建，请前往“我的订单”查看')
+      return
+    }
+    clearRequestId(storageKey)
     ElMessage.success('预约成功，等待商家接单')
-    router.push('/user/orders')
+  } catch (error) {
+    if (storageKey && error.response?.status === 409) {
+      rotateRequestId(storageKey)
+    }
+    if (orderCompleted.value && !error.response) {
+      ElMessage.warning('订单已创建，请前往“我的订单”查看')
+    }
   } finally {
     submitting.value = false
   }
@@ -178,6 +231,7 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
 </script>
 
 <style scoped>

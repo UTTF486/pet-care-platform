@@ -47,9 +47,9 @@
         FROM t_user
         <where>
             <if test="keyword != null and keyword != ''">
-                AND (username LIKE CONCAT('%', #{keyword}, '%')
-                OR nickname LIKE CONCAT('%', #{keyword}, '%')
-                OR phone LIKE CONCAT('%', #{keyword}, '%'))
+                AND (username LIKE CONCAT(#{keyword}, '%')
+                OR nickname LIKE CONCAT(#{keyword}, '%')
+                OR phone = #{keyword})
             </if>
         </where>
         ORDER BY create_time DESC
@@ -61,15 +61,11 @@
         FROM t_user
         <where>
             <if test="keyword != null and keyword != ''">
-                AND (username LIKE CONCAT('%', #{keyword}, '%')
-                OR nickname LIKE CONCAT('%', #{keyword}, '%')
-                OR phone LIKE CONCAT('%', #{keyword}, '%'))
+                AND (username LIKE CONCAT(#{keyword}, '%')
+                OR nickname LIKE CONCAT(#{keyword}, '%')
+                OR phone = #{keyword})
             </if>
         </where>
-    </select>
-
-    <select id="countAll" resultType="long">
-        SELECT COUNT(*) FROM t_user WHERE role = 0
     </select>
 
     <!-- BCrypt 密文以 $2a$ / $2b$ / $2y$ 开头，不是这个开头说明还是明文 -->

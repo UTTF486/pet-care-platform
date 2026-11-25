@@ -4,6 +4,7 @@ import com.petcare.annotation.RateLimit;
 import com.petcare.common.BusinessException;
 import com.petcare.common.ResultCode;
 import com.petcare.common.UserContext;
+import com.petcare.config.ClientIpResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -44,19 +45,30 @@ public class RateLimitAspect {
             Long.class);
 
     private final StringRedisTemplate redisTemplate;
+    private final ClientIpResolver clientIpResolver;
 
     @Around("@annotation(rateLimit)")
     public Object around(ProceedingJoinPoint joinPoint, RateLimit rateLimit) throws Throwable {
         String identity = resolveIdentity();
         String redisKey = KEY_PREFIX + rateLimit.key() + ":" + identity;
 
-        Long current = redisTemplate.execute(
-                RATE_LIMIT_SCRIPT,
-                Collections.singletonList(redisKey),
-                String.valueOf(rateLimit.seconds()));
+        Long current;
+        try {
+            current = redisTemplate.execute(
+                    RATE_LIMIT_SCRIPT,
+                    Collections.singletonList(redisKey),
+                    String.valueOf(rateLimit.seconds()));
+        } catch (Exception e) {
+            log.error("限流 Redis 异常, action={}, failOpen={}", rateLimit.key(), rateLimit.failOpen(), e);
+            if (rateLimit.failOpen()) {
+                // 公共浏览接口不能因为限流组件故障整体不可用。
+                return joinPoint.proceed();
+            }
+            throw new BusinessException(ResultCode.ERROR, "安全校验服务暂时不可用，请稍后再试");
+        }
 
         if (current != null && current > rateLimit.count()) {
-            log.warn("触发限流, key={}, 当前次数={}", redisKey, current);
+            log.warn("触发限流, action={}, 当前次数={}", rateLimit.key(), current);
             throw new BusinessException(ResultCode.RATE_LIMIT, rateLimit.message());
         }
 
@@ -64,7 +76,7 @@ public class RateLimitAspect {
     }
 
     /**
-     * 优先按用户维度限流；未登录（理论上不会发生）降级按 IP。
+     * 优先按用户维度限流；未登录或公开接口按可信代理解析后的客户端 IP。
      */
     private String resolveIdentity() {
         Long userId = UserContext.getUserId();
@@ -75,7 +87,7 @@ public class RateLimitAspect {
                 (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attributes != null) {
             HttpServletRequest request = attributes.getRequest();
-            return "ip" + request.getRemoteAddr();
+            return "ip" + clientIpResolver.resolve(request);
         }
         return "anonymous";
     }

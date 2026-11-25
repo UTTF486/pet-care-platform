@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -97,7 +98,7 @@ public class ServiceCatalogService {
         }
 
         ServiceItem item = serviceItemMapper.selectById(id);
-        if (item == null) {
+        if (item == null || item.getStatus() == null || item.getStatus() != 1) {
             throw new BusinessException(ResultCode.NOT_FOUND, "服务项目不存在");
         }
         writeCache(key, item, detailSeconds);
@@ -112,6 +113,7 @@ public class ServiceCatalogService {
     }
 
     public Long save(ServiceItem item) {
+        requireCategory(item.getCategoryId());
         if (item.getStatus() == null) {
             item.setStatus(1);
         }
@@ -129,6 +131,12 @@ public class ServiceCatalogService {
         if (item.getId() == null) {
             throw new BusinessException(ResultCode.PARAM_ERROR, "缺少服务 id");
         }
+        if (!hasUpdatableField(item)) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "没有可更新的服务字段");
+        }
+        if (item.getCategoryId() != null) {
+            requireCategory(item.getCategoryId());
+        }
         int rows = serviceItemMapper.update(item);
         if (rows == 0) {
             throw new BusinessException(ResultCode.NOT_FOUND, "服务项目不存在");
@@ -143,7 +151,9 @@ public class ServiceCatalogService {
         if (status == null || (status != 0 && status != 1)) {
             throw new BusinessException(ResultCode.PARAM_ERROR, "状态值只能是 0 或 1");
         }
-        serviceItemMapper.updateStatus(id, status);
+        if (serviceItemMapper.updateStatus(id, status) == 0) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "服务项目不存在");
+        }
         evictCache(id);
     }
 
@@ -184,6 +194,22 @@ public class ServiceCatalogService {
             log.debug("清理服务缓存 {} 个", keys.size());
         } catch (Exception e) {
             log.warn("清理服务缓存失败, keys={}", keys, e);
+        }
+    }
+
+    private boolean hasUpdatableField(ServiceItem item) {
+        return item.getCategoryId() != null
+                || StringUtils.hasText(item.getName())
+                || item.getCover() != null
+                || item.getDescription() != null
+                || item.getPrice() != null
+                || item.getDuration() != null
+                || item.getStatus() != null;
+    }
+
+    private void requireCategory(Long categoryId) {
+        if (categoryId == null || categoryMapper.selectById(categoryId) == null) {
+            throw new BusinessException(ResultCode.PARAM_ERROR, "服务品类不存在");
         }
     }
 }

@@ -61,6 +61,7 @@
             </span>
             <template #dropdown>
               <el-dropdown-menu>
+                <el-dropdown-item command="password">修改密码</el-dropdown-item>
                 <el-dropdown-item command="logout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -90,6 +91,7 @@
         <div class="message-content">{{ item.content }}</div>
       </div>
     </el-drawer>
+    <ChangePasswordDialog v-model="passwordVisible" />
   </el-container>
 </template>
 
@@ -99,6 +101,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getUser, clearLogin } from '../store/user'
 import { logout, listMessages, getUnreadCount, readAllMessages } from '../api'
+import ChangePasswordDialog from '../components/ChangePasswordDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -106,6 +109,7 @@ const user = ref(getUser())
 const unread = ref(0)
 const messages = ref([])
 const messageVisible = ref(false)
+const passwordVisible = ref(false)
 
 const activeMenu = computed(() => route.path)
 
@@ -132,6 +136,7 @@ async function handleReadAll() {
 }
 
 function handleCommand(command) {
+  if (command === 'password') passwordVisible.value = true
   if (command === 'logout') {
     logout().catch(() => {}).finally(() => {
       clearLogin()

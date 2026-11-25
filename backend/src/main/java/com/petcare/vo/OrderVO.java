@@ -17,9 +17,8 @@ public class OrderVO extends Order {
     private String petName;
     private String petType;
 
-    /** 服务封面、时长，订单详情页用 */
+    /** 服务封面，订单详情页用；时长使用订单表中的快照字段。 */
     private String serviceCover;
-    private Integer serviceDuration;
 
     /** 接单服务师姓名 */
     private String servicerName;

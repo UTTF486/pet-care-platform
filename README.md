@@ -1,6 +1,6 @@
 # 智慧宠物服务上门平台（爪爪到家）
 
-面向应届生实习求职的 **Java 全栈实战项目**。业务由经典外卖系统迁移改造为「宠物上门服务」场景：用户下单预约 → 商家接单派单 → 服务师上门 → 完成评价，配套商家数据看板与后台管理。
+面向宠物上门服务场景的 **Java 全栈项目**：用户下单预约 → 商家接单派单 → 服务师上门 → 完成评价，配套商家数据看板与后台管理。
 
 不追求堆技术，追求 **业务完整、逻辑自洽、能讲清楚**。
 
@@ -15,7 +15,7 @@
 | 前端 | Vue 3（`<script setup>`）、Element Plus、Axios、Vue Router、ECharts |
 | 构建 | 后端 Maven，前端 Vite |
 
-**没有引入的东西（刻意为之）**：Spring Security、RabbitMQ、Elasticsearch、微服务、Docker。这些在实习面试里属于加分项而非必需项，硬塞反而讲不透。项目里用注释写清了"如果要上生产，这里该怎么演进"。
+**当前未引入**：Spring Security、RabbitMQ、Elasticsearch、微服务和 Docker。项目保持单体架构，相关生产演进方向写在架构文档中。
 
 ---
 
@@ -23,9 +23,10 @@
 
 **用户端**
 - 注册 / 登录（Token 存 Redis，支持禁用后立即踢下线）
+- 修改密码（成功后撤销该用户所有旧登录态）
 - 服务浏览：品类筛选、关键字搜索、热门推荐（Redis 缓存）、分页
 - 宠物档案：增删改查，备注栏给服务师看（怕生 / 肠胃敏感 / 需喂药）
-- 预约下单：选宠物 + 日期 + 时段 + 地址，金额后端计算防篡改
+- 预约下单：选宠物 + 日期 + 时段 + 地址，金额后端计算防篡改；requestId 幂等防双击
 - 我的订单：状态筛选、取消、催单（5 分钟去重）、评价、进度时间线
 
 **商家后台**
@@ -58,22 +59,23 @@ pet-service-platform/
 │   │   │   ├── common/                      # Result / ResultCode / PageResult
 │   │   │   │                                # BusinessException / GlobalExceptionHandler
 │   │   │   │                                # LoginUser / UserContext / OrderStatus
-│   │   │   ├── config/WebConfig.java        # 跨域 + 拦截器 + BCrypt
+│   │   │   ├── config/                      # WebConfig + 可信代理 IP 解析
 │   │   │   ├── controller/                  # 10 个 Controller，按端划分
 │   │   │   ├── dto/                         # 入参对象（含校验注解）
 │   │   │   ├── entity/                      # 9 张表对应实体
-│   │   │   ├── init/DataInitializer.java    # 启动时把明文密码升级为 BCrypt
+│   │   │   ├── init/DataInitializer.java    # local profile 升级种子密码
 │   │   │   ├── interceptor/AuthInterceptor.java  # 登录 + 角色校验
 │   │   │   ├── mapper/                      # 9 个 Mapper 接口
-│   │   │   ├── service/                     # 业务层（7 个 Service）
+│   │   │   ├── service/                     # 业务层（含独立超时事务）
 │   │   │   ├── task/OrderTimeoutTask.java   # 超时取消定时任务
-│   │   │   ├── util/                        # TokenService / CommonUtil
+│   │   │   ├── util/                        # Token / 时间 / 订单号工具
 │   │   │   └── vo/                          # 出参对象
 │   │   └── resources/
 │   │       ├── application.yml
 │   │       └── mapper/*.xml                 # 9 个 MyBatis 映射文件
-│   └── src/test/java/com/petcare/MapperXmlParseTest.java  # Mapper 自检（无需数据库）
+│   └── src/test/java/com/petcare/           # Mapper、校验、时间和幂等逻辑测试
 │
+├── config/                                 # Jar 外本地密码配置（git 忽略）
 ├── frontend/                               # 前端工程
 │   ├── package.json / vite.config.js / index.html
 │   └── src/
@@ -90,8 +92,9 @@ pet-service-platform/
 │           ├── user/  Home / ServiceDetail / MyOrders / MyPets
 │           └── admin/ Dashboard / OrderManage / ServiceManage / ServicerManage / UserManage
 │
-├── sql/pet_service.sql                     # 建表 + 种子数据（含 7 天历史订单）
-└── docs/                                   # 架构 / 数据库 / 接口 / 面试
+├── sql/pet_service.sql                     # 全新建库 + 种子数据
+├── sql/migration-*.sql                     # 已有数据库增量迁移
+└── docs/                                   # 架构 / 数据库 / 接口 / 启动手册
 ```
 
 ---
@@ -133,14 +136,13 @@ redis-cli ping          # 返回 PONG 即正常
 
 **仓库里没有任何真实密码**，`application.yml` 全部走 `${环境变量:默认值}`。本地开发只需两步：
 
-```bash
-# ① 复制模板（这个 .example 文件是入库的模板）
-cd backend/src/main/resources
-copy application-local.yml.example application-local.yml
+```powershell
+# ① 在项目根目录复制外置模板（这个 .example 文件是入库的模板）
+copy config\application-local.yml.example config\application-local.yml
 ```
 
 ```yaml
-# ② 编辑 application-local.yml，填自己的密码
+# ② 编辑 config\application-local.yml，填自己的密码
 spring:
   datasource:
     username: root
@@ -151,24 +153,26 @@ spring:
     password: 你的Redis密码       # 没有密码就留空
 ```
 
-> `application-local.yml` 已在 `.gitignore` 中，**不会被提交**。
-> 如果不想用文件，也可以直接设环境变量：`MYSQL_PASSWORD` / `REDIS_PASSWORD`（见 `application.yml` 顶部注释）。
+> `config/application-local.yml` 已在 `.gitignore` 中，**不会被提交，也不会被打进 Jar**。
+> 如果不使用文件，也可以直接设置环境变量：`MYSQL_PASSWORD` / `REDIS_PASSWORD`（见 `application.yml` 顶部注释）。
 
 启动：
 
-```bash
+```powershell
 cd backend
+$env:SPRING_PROFILES_ACTIVE = "local"
 mvn clean install -DskipTests
 mvn spring-boot:run
 ```
 
-看到 `智慧宠物服务上门平台后端启动成功` 即成功。首次启动日志里会有：
+`application.yml` 默认使用 `prod` profile，不会自动加载本地密码；只有显式设置
+`SPRING_PROFILES_ACTIVE=local` 时才会导入项目根目录的 `config/application-local.yml`
+和本地 SQL 调试日志配置。若启动目录不同，可用 `PET_LOCAL_CONFIG` 指定绝对路径。
 
-```
-检测到 4 个明文密码账号，已升级为 BCrypt 密文（默认密码仍为 123456）
-```
+看到 `智慧宠物服务上门平台后端启动成功` 即成功。
 
-> 这是 `DataInitializer` 干的：SQL 里种子账号密码写的是明文 `123456`，启动时自动加密，避免在脚本里手写 BCrypt 串抄错。重复启动是幂等的。
+> 全新数据库的种子账号密码已经是 BCrypt 密文，默认演示密码仍为 `123456`。
+> 旧数据库若还保留明文密码，`DataInitializer` 只会在 `local` profile 下自动升级。
 > 这类种子账号是**演示用弱口令**，真实环境应改成强密码并走注册流程。
 
 ### 4. 启动前端
@@ -215,7 +219,7 @@ proxy: { '/api': { target: 'http://localhost:8080', changeOrigin: true } }
 ```
 
 - `code=200`：`request.js` 直接 `return res.data`，页面拿到的就是业务数据
-- `code=401`：清本地 Token，`window.location.replace('/login')`
+- `code=401`：前端清除本地 Token 并跳转 `/login`；HTTP 状态码也是 401
 - 其他：`ElMessage.error(message)` 兜底提示
 
 **登录态**
@@ -283,7 +287,7 @@ cd frontend && npm run build
 
 ---
 
-## 十、后续可扩展方向（面试被问"还能怎么优化"时用）
+## 十、后续可扩展方向
 
 1. **支付**：接入模拟支付，订单增加"待支付"状态与支付超时关单
 2. **分布式调度**：定时任务换 XXL-JOB，避免多实例重复执行
@@ -298,7 +302,7 @@ cd frontend && npm run build
 
 ## 十一、安全与配置管理（这个仓库为什么不含密码）
 
-开源项目把数据库密码写进 `application.yml` 是典型事故，本仓库做了三层处理：
+开源项目把数据库密码写进 `application.yml` 是典型事故，本仓库做了多层处理：
 
 **1）配置与代码分离**
 
@@ -312,11 +316,14 @@ spring:
     password: ${REDIS_PASSWORD:}
 ```
 
-本地真实密码放在 `application-local.yml`（已在 `.gitignore` 中），`application-local.yml.example` 作为模板入库。
+本地真实密码放在项目根目录的 `config/application-local.yml`（已在 `.gitignore` 中），
+`config/application-local.yml.example` 作为模板入库。该目录在 `backend/src/main/resources`
+之外，Maven 不会把它复制进 Jar。
 
 **2）`.gitignore` 兜底**
 
 ```gitignore
+config/application-local.yml
 application-local.yml
 application-*.local.yml
 *.local.yml
@@ -326,9 +333,16 @@ application-*.local.yml
 target/ node_modules/ dist/
 ```
 
-**3）密码本身不明文存业务库**
+**3）可信代理与登录保护**
 
-`t_user.password` 存 BCrypt 密文（自带随机盐，同一密码每次结果都不同），登录用 `passwordEncoder.matches()` 校验。SQL 种子里的 `123456` 只是演示弱口令，首次启动会被自动加密。
+限流默认使用 `getRemoteAddr()`。部署在 Nginx 后，需要把网关地址配置到
+`TRUSTED_PROXY_ADDRESSES`，例如 `127.0.0.1/32` 或 `172.18.0.0/16`；只有直连地址在可信 CIDR 中时才读取
+`X-Forwarded-For`。登录密码连续失败 5 次后，账号会锁定 15 分钟。
+公开服务浏览在限流 Redis 故障时允许降级访问；登录、注册和改密则保持 fail-closed。
+
+**4）密码本身不明文存业务库**
+
+`t_user.password` 存 BCrypt 密文（自带随机盐，同一密码每次结果都不同），登录用 `passwordEncoder.matches()` 校验。全量 SQL 中的种子密码已直接写为 BCrypt；`123456` 只是演示用弱口令。
 
 **万一误提交了怎么办**：改密码 → 用 `git filter-repo` 或 BFG 清理历史 → 强制推送。注意：**仅删除文件不够**，Git 历史里仍能翻出来。养成习惯：提交前 `git status` 看一眼，敏感文件永远先加 `.gitignore`。
 

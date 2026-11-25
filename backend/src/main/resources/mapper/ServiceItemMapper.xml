@@ -28,7 +28,7 @@
                 AND s.category_id = #{categoryId}
             </if>
             <if test="keyword != null and keyword != ''">
-                AND s.name LIKE CONCAT('%', #{keyword}, '%')
+                AND s.name LIKE CONCAT(#{keyword}, '%')
             </if>
             <if test="status != null">
                 AND s.status = #{status}
@@ -46,7 +46,7 @@
                 AND s.category_id = #{categoryId}
             </if>
             <if test="keyword != null and keyword != ''">
-                AND s.name LIKE CONCAT('%', #{keyword}, '%')
+                AND s.name LIKE CONCAT(#{keyword}, '%')
             </if>
             <if test="status != null">
                 AND s.status = #{status}
@@ -100,7 +100,4 @@
         WHERE id = #{id}
     </update>
 
-    <select id="countOnSale" resultType="long">
-        SELECT COUNT(*) FROM t_service WHERE status = 1
-    </select>
 </mapper>

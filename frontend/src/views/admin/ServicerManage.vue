@@ -72,13 +72,13 @@
     <el-dialog v-model="dialogVisible" :title="form.id ? '编辑服务师' : '新增服务师'" width="480px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
         <el-form-item label="姓名" prop="name">
-          <el-input v-model="form.name" placeholder="如 王阿姨" />
+          <el-input v-model="form.name" maxlength="32" placeholder="如 王阿姨" />
         </el-form-item>
         <el-form-item label="手机号">
           <el-input v-model="form.phone" placeholder="用于接单通知" maxlength="11" />
         </el-form-item>
         <el-form-item label="擅长技能">
-          <el-input v-model="form.skills" placeholder="逗号分隔，如 猫咪喂养,喂药" />
+          <el-input v-model="form.skills" maxlength="255" placeholder="逗号分隔，如 猫咪喂养,喂药" />
         </el-form-item>
         <el-form-item label="等级">
           <el-radio-group v-model="form.level">

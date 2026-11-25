@@ -4,12 +4,15 @@ import com.petcare.common.PageResult;
 import com.petcare.common.Result;
 import com.petcare.dto.OrderCreateDTO;
 import com.petcare.dto.ReviewDTO;
+import com.petcare.entity.OrderLog;
+import com.petcare.entity.Review;
 import com.petcare.service.OrderService;
 import com.petcare.vo.OrderVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
+import java.util.List;
 
 /**
  * 用户端订单接口。
@@ -41,6 +44,16 @@ public class OrderController {
     @GetMapping("/{id}")
     public Result<OrderVO> detail(@PathVariable Long id) {
         return Result.success(orderService.detail(id));
+    }
+
+    @GetMapping("/{id}/logs")
+    public Result<List<OrderLog>> logs(@PathVariable Long id) {
+        return Result.success(orderService.logs(id));
+    }
+
+    @GetMapping("/{id}/review")
+    public Result<Review> reviewDetail(@PathVariable Long id) {
+        return Result.success(orderService.reviewDetail(id));
     }
 
     /** 取消订单 */

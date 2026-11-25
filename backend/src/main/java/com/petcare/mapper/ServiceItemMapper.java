@@ -41,5 +41,4 @@ public interface ServiceItemMapper {
     /** 订单完成后累加销量 */
     int increaseSales(@Param("id") Long id);
 
-    long countOnSale();
 }

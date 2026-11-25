@@ -24,6 +24,7 @@
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item v-if="isAdminUser" command="admin">进入商家后台</el-dropdown-item>
+              <el-dropdown-item command="password">修改密码</el-dropdown-item>
               <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -35,25 +36,31 @@
       <router-view />
     </main>
 
-    <footer class="footer">智慧宠物服务上门平台 · 2027 届实习项目演示</footer>
+    <ChangePasswordDialog v-model="passwordVisible" />
+    <footer class="footer">智慧宠物服务上门平台</footer>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getUser, isAdmin, clearLogin } from '../store/user'
 import { logout } from '../api'
+import ChangePasswordDialog from '../components/ChangePasswordDialog.vue'
 
 const router = useRouter()
 const user = computed(() => getUser())
 const isAdminUser = computed(() => isAdmin())
 const avatarText = computed(() => (user.value?.nickname || 'U').slice(0, 1))
+const passwordVisible = ref(false)
 
 function handleCommand(command) {
   if (command === 'admin') {
     router.push('/admin/dashboard')
+  }
+  if (command === 'password') {
+    passwordVisible.value = true
   }
   if (command === 'logout') {
     // 即使接口失败也要清本地，保证用户能退出

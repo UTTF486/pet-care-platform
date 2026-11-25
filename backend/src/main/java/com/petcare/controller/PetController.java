@@ -4,9 +4,9 @@ import com.petcare.common.Result;
 import com.petcare.entity.Pet;
 import com.petcare.service.PetService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import javax.validation.Valid;
 import java.util.List;
 
 /**
@@ -25,12 +25,12 @@ public class PetController {
     }
 
     @PostMapping
-    public Result<Long> add(@RequestBody @Valid Pet pet) {
+    public Result<Long> add(@RequestBody @Validated(Pet.Create.class) Pet pet) {
         return Result.success("添加成功", petService.add(pet));
     }
 
     @PutMapping
-    public Result<Void> update(@RequestBody @Valid Pet pet) {
+    public Result<Void> update(@RequestBody @Validated(Pet.Update.class) Pet pet) {
         petService.update(pet);
         return Result.success();
     }

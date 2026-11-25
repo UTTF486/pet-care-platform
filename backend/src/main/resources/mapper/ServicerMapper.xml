@@ -21,10 +21,11 @@
         ORDER BY level DESC, rating DESC
     </select>
 
-    <select id="countAvailableById" resultType="int">
-        SELECT COUNT(*)
+    <select id="lockAvailableById" resultType="com.petcare.entity.Servicer">
+        SELECT id, status
         FROM t_servicer
         WHERE id = #{id} AND status = 1
+        FOR UPDATE
     </select>
 
     <select id="selectPage" resultType="com.petcare.entity.Servicer">
@@ -33,9 +34,9 @@
         FROM t_servicer
         <where>
             <if test="keyword != null and keyword != ''">
-                AND (name LIKE CONCAT('%', #{keyword}, '%')
+                AND (name LIKE CONCAT(#{keyword}, '%')
                 OR skills LIKE CONCAT('%', #{keyword}, '%')
-                OR phone LIKE CONCAT('%', #{keyword}, '%'))
+                OR phone = #{keyword})
             </if>
         </where>
         ORDER BY status DESC, level DESC, id ASC
@@ -47,9 +48,9 @@
         FROM t_servicer
         <where>
             <if test="keyword != null and keyword != ''">
-                AND (name LIKE CONCAT('%', #{keyword}, '%')
+                AND (name LIKE CONCAT(#{keyword}, '%')
                 OR skills LIKE CONCAT('%', #{keyword}, '%')
-                OR phone LIKE CONCAT('%', #{keyword}, '%'))
+                OR phone = #{keyword})
             </if>
         </where>
     </select>
@@ -76,6 +77,15 @@
     <update id="increaseOrderCount">
         UPDATE t_servicer
         SET order_count = order_count + 1
+        WHERE id = #{id}
+    </update>
+
+    <update id="refreshRatingFromReviews">
+        UPDATE t_servicer
+        SET rating = COALESCE(
+            (SELECT ROUND(AVG(r.rating), 2) FROM t_review r WHERE r.servicer_id = #{id}),
+            5.00
+        )
         WHERE id = #{id}
     </update>
 </mapper>

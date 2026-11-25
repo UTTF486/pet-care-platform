@@ -5,6 +5,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+import java.time.ZoneId;
+import java.util.TimeZone;
+
 /**
  * 启动类。
  * <p>
@@ -17,6 +20,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class PetCareApplication {
 
     public static void main(String[] args) {
+        // 在 Spring/MySQL 连接池初始化之前统一 JVM 时间基准，避免应用时间与数据库 NOW() 相差 8 小时。
+        TimeZone.setDefault(TimeZone.getTimeZone(ZoneId.of("Asia/Shanghai")));
         SpringApplication.run(PetCareApplication.class, args);
         System.out.println("=================================================");
         System.out.println("  智慧宠物服务上门平台后端启动成功");

@@ -12,10 +12,9 @@
         p.name AS pet_name,
         p.pet_type AS pet_type,
         s.cover AS service_cover,
-        s.duration AS service_duration,
         sv.name AS servicer_name,
         u.nickname AS user_nickname,
-        (SELECT COUNT(*) FROM t_review r WHERE r.order_id = o.id) &gt; 0 AS reviewed
+        EXISTS (SELECT 1 FROM t_review r WHERE r.order_id = o.id) AS reviewed
         FROM t_order o
         LEFT JOIN t_pet p ON p.id = o.pet_id
         LEFT JOIN t_service s ON s.id = o.service_id
@@ -25,17 +24,40 @@
 
     <insert id="insert" parameterType="com.petcare.entity.Order"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO t_order (order_no, user_id, pet_id, service_id, servicer_id, service_name, service_price,
-                             amount, contact_name, contact_phone, address, appoint_date, time_slot,
-                             status, remark, create_time, expire_time)
-        VALUES (#{orderNo}, #{userId}, #{petId}, #{serviceId}, #{servicerId}, #{serviceName}, #{servicePrice},
-                #{amount}, #{contactName}, #{contactPhone}, #{address}, #{appointDate}, #{timeSlot},
-                #{status}, IFNULL(#{remark}, ''), NOW(), #{expireTime})
+        INSERT INTO t_order (order_no, request_id, request_hash, user_id, pet_id, service_id, servicer_id,
+                             service_name, service_price, amount, service_duration,
+                             contact_name, contact_phone, address, appoint_date, time_slot,
+                             appointment_start, appointment_end, status, remark, create_time, expire_time)
+        VALUES (#{orderNo}, #{requestId}, #{requestHash}, #{userId}, #{petId}, #{serviceId}, #{servicerId},
+                #{serviceName}, #{servicePrice}, #{amount}, #{serviceDuration},
+                #{contactName}, #{contactPhone}, #{address}, #{appointDate}, #{timeSlot},
+                #{appointmentStart}, #{appointmentEnd}, #{status}, IFNULL(#{remark}, ''), NOW(), #{expireTime})
     </insert>
+
+    <select id="selectByUserAndRequestId" resultType="com.petcare.entity.Order">
+        SELECT id, request_id, request_hash
+        FROM t_order
+        WHERE user_id = #{userId} AND request_id = #{requestId}
+        LIMIT 1
+    </select>
+
+    <select id="selectByUserAndRequestIdForUpdate" resultType="com.petcare.entity.Order">
+        SELECT id, request_id, request_hash
+        FROM t_order
+        WHERE user_id = #{userId} AND request_id = #{requestId}
+        LIMIT 1
+        FOR UPDATE
+    </select>
 
     <select id="selectDetail" resultType="com.petcare.vo.OrderVO">
         <include refid="Order_Join_Select"/>
         WHERE o.id = #{id}
+    </select>
+
+    <select id="selectState" resultType="com.petcare.entity.Order">
+        SELECT *
+        FROM t_order
+        WHERE id = #{id}
     </select>
 
     <!-- 用户端：我的订单，按状态筛选 -->
@@ -70,10 +92,10 @@
                 AND o.status = #{status}
             </if>
             <if test="keyword != null and keyword != ''">
-                AND (o.order_no LIKE CONCAT('%', #{keyword}, '%')
-                OR o.contact_name LIKE CONCAT('%', #{keyword}, '%')
-                OR o.contact_phone LIKE CONCAT('%', #{keyword}, '%')
-                OR o.address LIKE CONCAT('%', #{keyword}, '%'))
+                AND (o.order_no LIKE CONCAT(#{keyword}, '%')
+                OR o.contact_name LIKE CONCAT(#{keyword}, '%')
+                OR o.contact_phone = #{keyword}
+                OR o.address LIKE CONCAT(#{keyword}, '%'))
             </if>
         </where>
         ORDER BY o.status ASC, o.create_time DESC
@@ -88,10 +110,10 @@
                 AND o.status = #{status}
             </if>
             <if test="keyword != null and keyword != ''">
-                AND (o.order_no LIKE CONCAT('%', #{keyword}, '%')
-                OR o.contact_name LIKE CONCAT('%', #{keyword}, '%')
-                OR o.contact_phone LIKE CONCAT('%', #{keyword}, '%')
-                OR o.address LIKE CONCAT('%', #{keyword}, '%'))
+                AND (o.order_no LIKE CONCAT(#{keyword}, '%')
+                OR o.contact_name LIKE CONCAT(#{keyword}, '%')
+                OR o.contact_phone = #{keyword}
+                OR o.address LIKE CONCAT(#{keyword}, '%'))
             </if>
         </where>
     </select>
@@ -124,6 +146,25 @@
         WHERE id = #{id} AND status = 0
     </update>
 
+    <!--
+      锁定读而不是普通 SELECT：事务开头已经读过订单，在 REPEATABLE READ 下普通查询
+      可能继续使用旧快照；锁定读保证看到等待服务师行锁期间刚提交的其他接单。
+    -->
+    <select id="selectServicerScheduleConflicts" resultType="long">
+        SELECT id
+        FROM t_order
+        WHERE servicer_id = #{servicerId}
+          AND status = 1
+          AND appointment_start &lt; #{appointmentEnd}
+          AND appointment_end &gt; #{appointmentStart}
+          AND id &lt;&gt; #{excludeOrderId}
+        FOR UPDATE
+    </select>
+
+    <select id="countByPetId" resultType="long">
+        SELECT COUNT(*) FROM t_order WHERE pet_id = #{petId}
+    </select>
+
     <select id="selectTimeoutList" resultType="com.petcare.entity.Order">
         SELECT *
         FROM t_order
@@ -133,27 +174,20 @@
         LIMIT #{limit}
     </select>
 
-    <select id="countByStatus" resultType="long">
-        SELECT COUNT(*) FROM t_order WHERE status = #{status}
-    </select>
-
-    <select id="countAll" resultType="long">
-        SELECT COUNT(*) FROM t_order
-    </select>
-
-    <!--
-      统计区间数据。营收只算已完成订单(status=2)，否则会把待服务、已取消的钱也算进营收。
-      返回 Map，前端拿 orderCount / revenue 两个 key。
-    -->
-    <select id="selectStatRange" resultType="java.util.Map">
-        SELECT COUNT(*) AS orderCount,
-        IFNULL(SUM(CASE WHEN status = 2 THEN amount ELSE 0 END), 0) AS revenue
-        FROM t_order
-        <where>
-            <if test="start != null">
-                create_time &gt;= #{start}
-            </if>
-        </where>
+    <select id="selectOverview" resultType="java.util.Map">
+        SELECT
+        COUNT(CASE WHEN o.create_time &gt;= #{todayStart} THEN 1 END) AS todayOrderCount,
+        IFNULL(SUM(CASE WHEN o.create_time &gt;= #{todayStart} AND o.status = 2
+                        THEN o.amount ELSE 0 END), 0) AS todayRevenue,
+        COUNT(*) AS totalOrderCount,
+        IFNULL(SUM(CASE WHEN o.status = 2 THEN o.amount ELSE 0 END), 0) AS totalRevenue,
+        COUNT(CASE WHEN o.status = 0 THEN 1 END) AS pendingCount,
+        (SELECT COUNT(*) FROM t_user u WHERE u.role = 0) AS userCount,
+        (SELECT COUNT(*) FROM t_service s WHERE s.status = 1) AS onSaleServiceCount,
+        (SELECT COUNT(*) FROM t_review r) AS totalReview,
+        (SELECT COUNT(*) FROM t_review r WHERE r.rating &gt;= 4) AS goodReview,
+        (SELECT IFNULL(ROUND(AVG(r.rating), 2), 0) FROM t_review r) AS avgRating
+        FROM t_order o
     </select>
 
     <!--
@@ -163,7 +197,7 @@
     -->
     <select id="selectTrend" resultType="com.petcare.vo.TrendPointVO">
         SELECT DATE_FORMAT(create_time, #{dateFormat}) AS label,
-        COUNT(*) AS orderCount,
+        COUNT(CASE WHEN status &lt;&gt; 3 THEN 1 END) AS orderCount,
         IFNULL(SUM(CASE WHEN status = 2 THEN amount ELSE 0 END), 0) AS revenue
         FROM t_order
         WHERE create_time &gt;= #{start}
@@ -172,14 +206,15 @@
     </select>
 
     <select id="selectServiceRank" resultType="com.petcare.vo.ServiceRankVO">
-        SELECT service_id AS serviceId,
-        MAX(service_name) AS serviceName,
+        SELECT o.service_id AS serviceId,
+        COALESCE(MAX(s.name), MAX(o.service_name)) AS serviceName,
         COUNT(*) AS orderCount,
-        IFNULL(SUM(CASE WHEN status = 2 THEN amount ELSE 0 END), 0) AS revenue
-        FROM t_order
-        WHERE create_time &gt;= #{start}
-        AND status &lt;&gt; 3
-        GROUP BY service_id
+        IFNULL(SUM(CASE WHEN o.status = 2 THEN o.amount ELSE 0 END), 0) AS revenue
+        FROM t_order o
+        LEFT JOIN t_service s ON s.id = o.service_id
+        WHERE o.create_time &gt;= #{start}
+        AND o.status &lt;&gt; 3
+        GROUP BY o.service_id
         ORDER BY orderCount DESC
         LIMIT #{limit}
     </select>

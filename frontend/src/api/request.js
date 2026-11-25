@@ -32,28 +32,32 @@ request.interceptors.response.use(
       return res.data
     }
 
-    // 登录态失效：清空本地并跳登录页
-    if (res.code === 401) {
-      ElMessage.error(res.message || '登录已失效，请重新登录')
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      // 用 replace 避免用户点后退又回到需要登录的页面
-      setTimeout(() => window.location.replace('/login'), 600)
-      return Promise.reject(new Error(res.message))
-    }
+    if (res.code === 401) return rejectUnauthorized(res.message)
 
     // 其余业务错误统一弹提示，页面只需要处理成功分支
     ElMessage.error(res.message || '请求失败')
     return Promise.reject(new Error(res.message || '请求失败'))
   },
   (error) => {
-    // HTTP 层错误：后端没启动、超时、502 等
-    const msg = error.response
+    // 后端现在让 HTTP 状态码与业务 code 对齐，错误信息仍在统一 Result 中。
+    const res = error.response?.data
+    if (res?.code === 401) return rejectUnauthorized(res.message)
+
+    const msg = res?.message || (error.response
       ? `服务异常(${error.response.status})，请稍后重试`
-      : '网络异常，请确认后端已启动（http://localhost:8080）'
+      : '网络异常，请确认后端已启动（http://localhost:8080）')
     ElMessage.error(msg)
     return Promise.reject(error)
   }
 )
+
+function rejectUnauthorized(message) {
+  ElMessage.error(message || '登录已失效，请重新登录')
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
+  // 用 replace 避免用户点后退又回到需要登录的页面
+  setTimeout(() => window.location.replace('/login'), 600)
+  return Promise.reject(new Error(message || '登录已失效，请重新登录'))
+}
 
 export default request
